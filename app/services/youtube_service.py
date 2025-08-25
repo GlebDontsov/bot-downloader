@@ -179,37 +179,22 @@ class YouTubeService:
                 # Для аудио формата
                 format_selector = "bestaudio/best"
             else:
-                # Для видео формата с fallback стратегией
-                if quality == "480p":
-                    format_selector = (
-                        "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
-                    )
-                elif quality == "720p":
-                    format_selector = (
-                        "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
-                    )
-                elif quality == "1080p":
-                    format_selector = (
-                        "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
-                    )
-                elif quality == "360p":
-                    format_selector = (
-                        "bestvideo[height<=360]+bestaudio/best[height<=360]/best"
-                    )
-                elif quality == "240p":
-                    format_selector = (
-                        "bestvideo[height<=240]+bestaudio/best[height<=240]/best"
-                    )
-                else:
-                    # По умолчанию
-                    format_selector = (
-                        "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
-                    )
+                height_map = {
+                    "240p": 240,
+                    "360p": 360,
+                    "480p": 480,
+                    "720p": 720,
+                    "1080p": 1080
+                }
+
+                height = height_map.get(quality, 720)
+                format_selector = f"bestvideo[height<={height}][vcodec^=avc1]+bestaudio/best[height<={height}]/best"
 
             ydl_opts = {
                 "format": format_selector,
                 "outtmpl": output_template,
                 "quiet": True,
+                'overwrites': True,
                 "no_warnings": True,
                 "writeinfojson": False,
                 "writesubtitles": False,

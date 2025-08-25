@@ -2,7 +2,7 @@ services:
   bot:
     profiles: ["production"]
     build: .
-    container_name: youtube-downloader-bot
+    container_name: downloader-bot
     restart: unless-stopped
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
@@ -35,7 +35,7 @@ services:
   db:
     profiles: ["production"]
     image: postgres:15-alpine
-    container_name: youtube-downloader-db
+    container_name: downloader-db
     restart: unless-stopped
     environment:
       - POSTGRES_DB=youtube_bot
@@ -56,7 +56,7 @@ services:
   redis:
     profiles: ["production"]
     image: redis:7-alpine
-    container_name: youtube-downloader-redis
+    container_name: downloader-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
@@ -73,7 +73,7 @@ services:
   db-dev:
     profiles: ["development"]
     image: postgres:15-alpine
-    container_name: youtube-downloader-db
+    container_name: downloader-db
     restart: unless-stopped
     environment:
       - POSTGRES_DB=youtube_bot
@@ -96,7 +96,7 @@ services:
   redis-dev:
     profiles: ["development"]
     image: redis:7-alpine
-    container_name: youtube-downloader-redis
+    container_name: downloader-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
