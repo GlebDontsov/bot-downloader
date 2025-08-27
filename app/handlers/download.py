@@ -30,7 +30,8 @@ async def youtube_url_handler(message: Message, user: User):
             "❌ Неверная ссылка на YouTube видео.\n"
             "Поддерживаемые форматы:\n"
             "• https://youtube.com/watch?v=VIDEO_ID\n"
-            "• https://youtu.be/VIDEO_ID"
+            "• https://youtu.be/VIDEO_ID\n"
+            "• https://youtube.com/shorts/VIDEO_ID"
         )
         return
 

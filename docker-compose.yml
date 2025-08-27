@@ -24,7 +24,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - youtube-bot-network
+      - bot-network
     healthcheck:
       test: ["CMD", "python", "-c", "from app.config.settings import settings; print('OK')"]
       interval: 30s
@@ -45,7 +45,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
     networks:
-      - youtube-bot-network
+      - bot-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U youtube_user -d youtube_bot"]
       interval: 10s
@@ -62,7 +62,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - youtube-bot-network
+      - bot-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -83,7 +83,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
     networks:
-      - youtube-bot-network
+      - bot-network
     ports:
       - "${DB_PORT:-5432}:5432"
     healthcheck:
@@ -102,7 +102,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - youtube-bot-network
+      - bot-network
     ports:
       - "${REDIS_PORT:-6379}:6379"
     healthcheck:
@@ -123,5 +123,5 @@ volumes:
     driver: local
 
 networks:
-  youtube-bot-network:
+  bot-network:
     driver: bridge

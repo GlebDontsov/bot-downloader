@@ -2,7 +2,7 @@
 Настройки приложения
 """
 
-from typing import List, Union
+from typing import List, Union, Any
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     # Telegram Bot
     bot_token: str = Field(..., description="Токен Telegram бота")
-    admin_ids: List[int] = Field(default_factory=list, description="ID администраторов")
+    admin_ids: Any = Field(default_factory=list, description="ID администраторов")
 
     # Database
     database_url: str = Field(
@@ -47,21 +47,18 @@ class Settings(BaseSettings):
         default=5, description="Количество запросов в минуту на пользователя"
     )
 
-    @field_validator("admin_ids", mode="before")
+    @field_validator("admin_ids", mode="after")
     @classmethod
-    def parse_admin_ids(cls, value: Union[str, int, List[int]]) -> List[int]:
-        """Парсинг ID администраторов из строки или числа в список"""
+    def parse_admin_ids(cls, value: Union[str, List[int]]) -> List[int]:
+        """Парсинг ID администраторов из строки в список"""
         if isinstance(value, str):
-            # Если строка, разделяем по запятым и преобразуем в числа
-            return [int(x.strip()) for x in value.split(",") if x.strip().isdigit()]
-        elif isinstance(value, int):
-            # Если одно число, делаем из него список
-            return [value]
-        elif isinstance(value, list):
-            # Если уже список, возвращаем как есть
-            return value
-        else:
-            return []
+            if not value.strip():
+                return []
+            try:
+                return [int(x.strip()) for x in value.split(",") if x.strip()]
+            except ValueError:
+                return []
+        return value
 
     class Config:
         env_file = ".env"
@@ -72,3 +69,4 @@ class Settings(BaseSettings):
 
 # Глобальный экземпляр настроек
 settings = Settings()
+print(settings)
