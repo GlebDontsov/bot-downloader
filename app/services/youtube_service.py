@@ -16,6 +16,7 @@ from tortoise.exceptions import DoesNotExist
 from app.models import Video, User, DownloadHistory, DownloadStatus
 from app.config.settings import settings
 from app.services.logger import get_logger
+from app.utils.funcs import format_file_size
 
 logger = get_logger(__name__)
 
@@ -153,7 +154,7 @@ class YouTubeService:
         return formats
 
     async def download_video(
-        self, video: Video, user: User, quality: str = "720p", format_type: str = "mp4"
+        self, video: Video, user: User, quality: str = "720p", format_type: str = "mp4", file_size: int = settings.max_file_size,
     ) -> Optional[DownloadHistory]:
         """Скачивает видео"""
 
@@ -180,16 +181,7 @@ class YouTubeService:
                 # Для аудио формата
                 format_selector = "bestaudio/best"
             else:
-                height_map = {
-                    "240p": 240,
-                    "360p": 360,
-                    "480p": 480,
-                    "720p": 720,
-                    "1080p": 1080
-                }
-
-                height = height_map.get(quality, 720)
-                format_selector = f"bestvideo[height<={height}][vcodec^=avc1]+bestaudio/best[height<={height}]/best"
+                format_selector = f"bestvideo[height<={quality}][vcodec^=avc1]+bestaudio/best[height<={quality}]/best"
 
             ydl_opts = {
                 "format": format_selector,
@@ -207,8 +199,11 @@ class YouTubeService:
             }
 
             # Добавляем ограничение размера файла
-            if settings.max_file_size:
+            if settings.max_file_size and format_type != "mp3":
                 ydl_opts["max_filesize"] = settings.max_file_size
+
+            if file_size > settings.max_file_size:
+                raise ValueError(f"Файл слишком большой: {format_file_size(file_size)}")
 
             # Скачиваем видео
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -223,10 +218,6 @@ class YouTubeService:
 
             downloaded_file = downloaded_files[0]
             file_size = downloaded_file.stat().st_size
-
-            # Проверяем размер файла
-            if file_size > settings.max_file_size:
-                raise Exception(f"Файл слишком большой: {file_size} байт")
 
             # Завершаем скачивание
             await download.mark_as_completed(

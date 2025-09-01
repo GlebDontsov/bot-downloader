@@ -10,6 +10,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.models import User
 from app.services.user_service import UserService
 from app.services.logger import get_logger
+from app.utils.funcs import format_file_size
 
 logger = get_logger(__name__)
 router = Router()
@@ -110,15 +111,7 @@ async def stats_handler(message: Message, user: User):
         return
 
     # Форматируем размер файлов
-    total_size = stats["total_download_size"]
-    if total_size > 1024 * 1024 * 1024:
-        size_text = f"{total_size / (1024 * 1024 * 1024):.1f} ГБ"
-    elif total_size > 1024 * 1024:
-        size_text = f"{total_size / (1024 * 1024):.1f} МБ"
-    elif total_size > 1024:
-        size_text = f"{total_size / 1024:.1f} КБ"
-    else:
-        size_text = f"{total_size} Б"
+    size_text = format_file_size(stats["total_download_size"])
 
     stats_text = f"""
 📊 <b>Ваша статистика</b>
