@@ -187,7 +187,6 @@ class YouTubeService:
                 "format": format_selector,
                 "outtmpl": output_template,
                 "quiet": True,
-                'overwrites': True,
                 "no_warnings": True,
                 "writeinfojson": False,
                 "writesubtitles": False,

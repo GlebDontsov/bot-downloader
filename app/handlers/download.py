@@ -134,7 +134,7 @@ async def download_callback(callback: CallbackQuery, user: User):
 
         # Скачиваем видео
         download_record = await youtube_service.download_video(
-            video=video, user=user, quality=quality, format_type=format_type, file_size=int(file_size),
+            video=video, user=user, quality=quality.replace("p", ""), format_type=format_type, file_size=int(file_size),
         )
 
         if download_record and download_record.is_completed:
@@ -175,7 +175,7 @@ async def download_callback(callback: CallbackQuery, user: User):
                         f"🎬 <b>Видео:</b> {video.title}\n"
                         f"📹 <b>Качество:</b> {quality}\n"
                         f"📁 <b>Формат:</b> {format_type.upper()}\n"
-                        f"💾 <b>Размер:</b> {video.file_size_formatted or 'Неизвестно'}",
+                        f"💾 <b>Размер:</b> {format_file_size(file_size) or 'Неизвестно'}",
                         parse_mode="HTML",
                     )
 
