@@ -6,11 +6,11 @@ import os
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.exceptions import TelegramBadRequest
 
 from app.models import User
 from app.services.youtube_service import YouTubeService
 from app.services.logger import get_logger
+from app.utils.funcs import format_file_size
 
 logger = get_logger(__name__)
 router = Router()
@@ -30,7 +30,8 @@ async def youtube_url_handler(message: Message, user: User):
             "❌ Неверная ссылка на YouTube видео.\n"
             "Поддерживаемые форматы:\n"
             "• https://youtube.com/watch?v=VIDEO_ID\n"
-            "• https://youtu.be/VIDEO_ID"
+            "• https://youtu.be/VIDEO_ID\n"
+            "• https://youtube.com/shorts/VIDEO_ID"
         )
         return
 
@@ -71,8 +72,8 @@ async def youtube_url_handler(message: Message, user: User):
             # Добавляем кнопки для разных качеств MP4
             for quality in qualities[:5]:  # Ограничиваем до 5 качеств
                 builder.button(
-                    text=f"📹 {quality['name']} MP4",
-                    callback_data=f"download:{video.id}:mp4:{quality['name']}",
+                    text=f"📹 {quality['name']} MP4 / ~{format_file_size(quality['filesize'])}",
+                    callback_data=f"download:{video.id}:mp4:{quality['name']}:{quality['filesize']}",
                 )
         else:
             # Добавляем стандартные варианты
@@ -88,7 +89,7 @@ async def youtube_url_handler(message: Message, user: User):
 
         # Добавляем вариант MP3
         builder.button(
-            text="🎵 MP3 (только аудио)", callback_data=f"download:{video.id}:mp3:audio"
+            text="🎵 MP3 (только аудио)", callback_data=f"download:{video.id}:mp3:audio:1"
         )
 
         # Добавляем кнопку с информацией
@@ -112,7 +113,7 @@ async def youtube_url_handler(message: Message, user: User):
 async def download_callback(callback: CallbackQuery, user: User):
     """Обработчик скачивания видео"""
     try:
-        _, video_id, format_type, quality = callback.data.split(":")
+        _, video_id, format_type, quality, file_size = callback.data.split(":")
         video_id = int(video_id)
 
         # Получаем видео из базы данных
@@ -133,7 +134,7 @@ async def download_callback(callback: CallbackQuery, user: User):
 
         # Скачиваем видео
         download_record = await youtube_service.download_video(
-            video=video, user=user, quality=quality, format_type=format_type
+            video=video, user=user, quality=quality.replace("p", ""), format_type=format_type, file_size=int(file_size),
         )
 
         if download_record and download_record.is_completed:
@@ -174,11 +175,11 @@ async def download_callback(callback: CallbackQuery, user: User):
                         f"🎬 <b>Видео:</b> {video.title}\n"
                         f"📹 <b>Качество:</b> {quality}\n"
                         f"📁 <b>Формат:</b> {format_type.upper()}\n"
-                        f"💾 <b>Размер:</b> {video.file_size_formatted or 'Неизвестно'}",
+                        f"💾 <b>Размер:</b> {format_file_size(file_size) or 'Неизвестно'}",
                         parse_mode="HTML",
                     )
 
-                except TelegramBadRequest as e:
+                except ValueError as e:
                     logger.error(f"Ошибка отправки файла: {e}")
                     await callback.message.edit_text(
                         "❌ Файл слишком большой для отправки через Telegram.\n"

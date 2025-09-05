@@ -16,6 +16,7 @@ from tortoise.exceptions import DoesNotExist
 from app.models import Video, User, DownloadHistory, DownloadStatus
 from app.config.settings import settings
 from app.services.logger import get_logger
+from app.utils.funcs import format_file_size
 
 logger = get_logger(__name__)
 
@@ -35,6 +36,7 @@ class YouTubeService:
             r"(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]+)",
             r"(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]+)",
             r"(?:https?://)?(?:www\.)?youtube\.com/v/([a-zA-Z0-9_-]+)",
+            r"(?:https?://)?(?:www\.)?youtube\.com/shorts/([a-zA-Z0-9_-]+)",
         ]
 
         for pattern in patterns:
@@ -152,7 +154,7 @@ class YouTubeService:
         return formats
 
     async def download_video(
-        self, video: Video, user: User, quality: str = "720p", format_type: str = "mp4"
+        self, video: Video, user: User, quality: str = "720p", format_type: str = "mp4", file_size: int = settings.max_file_size,
     ) -> Optional[DownloadHistory]:
         """Скачивает видео"""
 
@@ -179,32 +181,7 @@ class YouTubeService:
                 # Для аудио формата
                 format_selector = "bestaudio/best"
             else:
-                # Для видео формата с fallback стратегией
-                if quality == "480p":
-                    format_selector = (
-                        "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
-                    )
-                elif quality == "720p":
-                    format_selector = (
-                        "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
-                    )
-                elif quality == "1080p":
-                    format_selector = (
-                        "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
-                    )
-                elif quality == "360p":
-                    format_selector = (
-                        "bestvideo[height<=360]+bestaudio/best[height<=360]/best"
-                    )
-                elif quality == "240p":
-                    format_selector = (
-                        "bestvideo[height<=240]+bestaudio/best[height<=240]/best"
-                    )
-                else:
-                    # По умолчанию
-                    format_selector = (
-                        "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
-                    )
+                format_selector = f"bestvideo[height<={quality}][vcodec^=avc1]+bestaudio/best[height<={quality}]/best"
 
             ydl_opts = {
                 "format": format_selector,
@@ -221,8 +198,11 @@ class YouTubeService:
             }
 
             # Добавляем ограничение размера файла
-            if settings.max_file_size:
+            if settings.max_file_size and format_type != "mp3":
                 ydl_opts["max_filesize"] = settings.max_file_size
+
+            if file_size > settings.max_file_size:
+                raise ValueError(f"Файл слишком большой: {format_file_size(file_size)}")
 
             # Скачиваем видео
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -237,10 +217,6 @@ class YouTubeService:
 
             downloaded_file = downloaded_files[0]
             file_size = downloaded_file.stat().st_size
-
-            # Проверяем размер файла
-            if file_size > settings.max_file_size:
-                raise Exception(f"Файл слишком большой: {file_size} байт")
 
             # Завершаем скачивание
             await download.mark_as_completed(
