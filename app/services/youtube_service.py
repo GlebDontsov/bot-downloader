@@ -62,7 +62,6 @@ class YouTubeService:
                 "quiet": True,
                 "no_warnings": True,
                 "extractaudio": False,
-                "cookiesfrombrowser": ('chrome',),
                 "format": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
             }
 
