@@ -175,7 +175,7 @@ async def download_callback(callback: CallbackQuery, user: User):
                         f"🎬 <b>Видео:</b> {video.title}\n"
                         f"📹 <b>Качество:</b> {quality}\n"
                         f"📁 <b>Формат:</b> {format_type.upper()}\n"
-                        f"💾 <b>Размер:</b> {format_file_size(file_size) or 'Неизвестно'}",
+                        f"💾 <b>Размер:</b> {format_file_size(int(file_size)) or 'Неизвестно'}",
                         parse_mode="HTML",
                     )
 

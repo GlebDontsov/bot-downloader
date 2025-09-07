@@ -20,6 +20,10 @@ class Settings(BaseSettings):
         description="URL подключения к базе данных",
     )
 
+    api_url: str = Field(
+        default="https://api.telegram.org", description="URL подключения к API Server"
+    )
+
     # Redis
     redis_url: str = Field(
         default="redis://localhost:6379/0", description="URL подключения к Redis"
@@ -69,4 +73,3 @@ class Settings(BaseSettings):
 
 # Глобальный экземпляр настроек
 settings = Settings()
-print(settings)

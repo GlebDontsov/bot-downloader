@@ -9,6 +9,8 @@ from datetime import datetime
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.telegram import TelegramAPIServer
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from tortoise import Tortoise
 
@@ -59,13 +61,19 @@ async def main():
     
     # Инициализируем базу данных
     await init_database()
+
+    session = AiohttpSession(
+        api=TelegramAPIServer.from_base(settings.api_url),
+        timeout=120,
+    )
     
     # Создаем бота и диспетчер
     bot = Bot(
         token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        session=session,
     )
-    
+
     dp = Dispatcher()
     
     # Регистрируем миддлвары
