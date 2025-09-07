@@ -63,7 +63,8 @@ async def main():
     await init_database()
 
     session = AiohttpSession(
-        api=TelegramAPIServer.from_base(settings.api_url)
+        api=TelegramAPIServer.from_base(settings.api_url),
+        timeout=120,
     )
     
     # Создаем бота и диспетчер
