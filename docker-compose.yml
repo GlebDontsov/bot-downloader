@@ -15,6 +15,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - LOG_FILE=/app/logs/bot.log
       - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-5}
+      - API_URL=${API_URL:-https://api.telegram.org}
     volumes:
       - downloads_data:/app/downloads
       - logs_data:/app/logs
