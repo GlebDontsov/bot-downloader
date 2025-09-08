@@ -158,6 +158,20 @@ class YouTubeService:
     ) -> Optional[DownloadHistory]:
         """Скачивает видео"""
 
+        existing_download = await DownloadHistory.filter(
+            user=user,
+            video=video,
+            quality=quality,
+            format_type=format_type,
+            status=DownloadStatus.COMPLETED
+        ).first()
+
+        if existing_download:
+            logger.info(
+                f"Видео уже было скачано ранее: {video.title} в качестве {quality} для пользователя {user.telegram_id}"
+            )
+            return existing_download
+
         # Создаем запись о скачивании
         download = await DownloadHistory.create(
             user=user,
