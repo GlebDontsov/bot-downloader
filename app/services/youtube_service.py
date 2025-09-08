@@ -166,7 +166,7 @@ class YouTubeService:
             status=DownloadStatus.COMPLETED
         ).first()
 
-        if existing_download:
+        if existing_download and existing_download.file_path:
             logger.info(
                 f"Видео уже было скачано ранее: {video.title} в качестве {quality} для пользователя {user.telegram_id}"
             )
