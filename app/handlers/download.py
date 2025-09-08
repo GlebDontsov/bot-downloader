@@ -306,7 +306,7 @@ async def back_to_download_callback(callback: CallbackQuery, user: User):
             for quality in qualities[:5]:
                 builder.button(
                     text=f"📹 {quality['name']} MP4",
-                    callback_data=f"download:{video.id}:mp4:{quality['name']}",
+                    callback_data=f"download:{video.id}:mp4:{quality['name']}:{quality['filesize']}",
                 )
         else:
             builder.button(
