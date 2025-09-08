@@ -10,7 +10,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.models import User
 from app.services.youtube_service import YouTubeService
 from app.services.logger import get_logger
-from app.utils.funcs import format_file_size
+from app.utils.funcs import format_file_size, format_duration
 
 logger = get_logger(__name__)
 router = Router()
@@ -154,11 +154,11 @@ async def download_callback(callback: CallbackQuery, user: User):
                     if format_type == "mp3":
                         sent_message = await callback.message.answer_audio(
                             file,
-                            caption=f"🎵 <b>{video.title}</b>\n\n"
+                            caption=f"🎵 <code>{video.title}</code>\n\n"
                                     f"📻 <b>Аудиодорожка</b>\n"
                                     f"👤 Автор: {video.channel_name}\n"
                                     f"📁 Формат: MP3\n"
-                                    f"⏱️ Продолжительность: {video.duration}\n\n"
+                                    f"⏱️ Продолжительность: {format_duration(video.duration)}\n\n"
                                     f"✅ <b>Скачивание завершено!</b>\n\n"
                                     f"🤖 Скачано через @savvy_video_bot",
                             parse_mode="HTML",
@@ -166,11 +166,11 @@ async def download_callback(callback: CallbackQuery, user: User):
                     else:
                         sent_message = await callback.message.answer_video(
                             file,
-                            caption=f"🎬 <b>{video.title}</b>\n\n"
+                            caption=f"🎬 <code>{video.title}</code>\n\n"
                                     f"📺 Канал: {video.channel_name}\n"
                                     f"🎯 Качество: {quality}\n"
                                     f"📁 Формат: {format_type.upper()}\n"
-                                    f"⏱️ Продолжительность: {video.duration}\n\n"
+                                    f"⏱️ Продолжительность: {format_duration(video.duration)}\n\n"
                                     f"🔗 {video.youtube_url}\n\n"
                                     f"✅ <b>Видео готово к просмотру!</b>\n\n"
                                     f"🤖 Скачано через @savvy_video_bot",
