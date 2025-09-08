@@ -282,7 +282,7 @@ class YouTubeService:
         # Сортируем по качеству (по убыванию)
         return sorted(qualities.values(), key=lambda x: x["height"], reverse=True)
 
-    async def cleanup_old_files(self, days: int = 7) -> int:
+    async def cleanup_old_files(self, days: int = 0) -> int:
         """Очищает старые скачанные файлы"""
         cleaned_count = 0
         cutoff_date = datetime.utcnow() - timedelta(days=days)
