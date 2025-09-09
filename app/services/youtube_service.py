@@ -4,11 +4,12 @@
 
 import os
 import re
+import shutil
 import asyncio
 import tempfile
 from pathlib import Path
 from typing import Optional, Dict, List, Any
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import yt_dlp
 from tortoise.exceptions import DoesNotExist
@@ -16,7 +17,7 @@ from tortoise.exceptions import DoesNotExist
 from app.models import Video, User, DownloadHistory, DownloadStatus
 from app.config.settings import settings
 from app.services.logger import get_logger
-from app.utils.funcs import format_file_size
+from app.utils.funcs import format_file_size, cleanup_old_files
 
 logger = get_logger(__name__)
 
@@ -172,6 +173,8 @@ class YouTubeService:
             )
             return existing_download
 
+        await cleanup_old_files()
+
         # Создаем запись о скачивании
         download = await DownloadHistory.create(
             user=user,
@@ -282,14 +285,12 @@ class YouTubeService:
         # Сортируем по качеству (по убыванию)
         return sorted(qualities.values(), key=lambda x: x["height"], reverse=True)
 
-    async def cleanup_old_files(self, days: int = 0) -> int:
+    async def cleanup_all_files(self) -> int:
         """Очищает старые скачанные файлы"""
         cleaned_count = 0
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
 
         old_downloads = await DownloadHistory.filter(
             status=DownloadStatus.COMPLETED,
-            completed_at__lt=cutoff_date,
             file_path__not_isnull=True,
         )
 
