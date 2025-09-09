@@ -1,10 +1,11 @@
 import os
 import shutil
 import asyncio
+import aiofiles.os as aio_os
 
 from loguru import logger
 from app.models import DownloadHistory, DownloadStatus
-
+from app.utils.constants import CLEANUP_THRESHOLD, TARGET_USAGE_DISK
 
 def format_file_size(total_size: int) -> str:
     """Форматирует размер файла в удобочитаемый вид."""
@@ -35,23 +36,25 @@ def format_duration(seconds: int) -> str:
         return f"{minutes}:{seconds:02d}"
 
 
-async def cleanup_old_files(disk_path: str = "/", target_usage: float = 50) -> int:
+async def cleanup_old_files(disk_path: str = "/") -> int:
     """
     Очищает старые скачанные файлы при превышении лимита диска.
     Удаляет файлы от самых старых до достижения целевого уровня использования диска.
     """
     # Проверяем текущее использование диска
-    total, used, free = shutil.disk_usage(disk_path)
+    total, used, free = await async_disk_usage("/")
     current_usage_percent = (used / total) * 100
 
-    # Если использование меньше 70%, очистка не требуется
-    logger.warning(current_usage_percent)
-    if current_usage_percent < 90:
+    if current_usage_percent < CLEANUP_THRESHOLD:
+        logger.info(
+            f"Очистка не требуется. Использование диска: {current_usage_percent:.1f}% "
+            f"(порог: {CLEANUP_THRESHOLD}%, свободно: {free / (1024 ** 3):.1f} GB)"
+        )
         return 0
 
     logger.warning(f"Переполнение диска! Использование: {current_usage_percent:.1f}%")
     cleaned_count = 0
-    target_bytes = total * (target_usage / 100)
+    target_bytes = total * (TARGET_USAGE_DISK / 100)
     bytes_to_free = used - target_bytes
 
     # Получаем файлы для удаления, отсортированные по дате завершения (самые старые first)
@@ -65,19 +68,19 @@ async def cleanup_old_files(disk_path: str = "/", target_usage: float = 50) -> i
             break
 
         try:
-            if download.file_path and os.path.exists(download.file_path):
+            if download.file_path and await aio_os.path.exists(download.file_path):
                 # Получаем размер файла перед удалением
-                file_size = os.path.getsize(download.file_path)
+                file_size = await aio_os.path.getsize(download.file_path)
 
                 # Удаляем файл
-                os.remove(download.file_path)
+                await aio_os.remove(download.file_path)
                 bytes_to_free -= file_size
                 cleaned_count += 1
 
                 # Удаляем пустую папку
                 parent_dir = os.path.dirname(download.file_path)
-                if os.path.exists(parent_dir) and not os.listdir(parent_dir):
-                    os.rmdir(parent_dir)
+                if await aio_os.path.exists(parent_dir) and not await aio_os.listdir(parent_dir):
+                    await aio_os.rmdir(parent_dir)
 
                 # Обновляем запись в базе
                 download.file_path = None
@@ -99,3 +102,21 @@ async def cleanup_old_files(disk_path: str = "/", target_usage: float = 50) -> i
     )
 
     return cleaned_count
+
+
+async def async_disk_usage(path: str = "/") -> tuple:
+    """Асинхронная проверка использования диска"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, shutil.disk_usage, path)
+
+
+async def cleanup_scheduler():
+    """Планировщик очистки с защитой от частого запуска"""
+    while True:
+        try:
+            await cleanup_old_files()
+            await asyncio.sleep(300)
+
+        except Exception as e:
+            logger.error(f"Ошибка в планировщике очистки: {e}")
+            await asyncio.sleep(300)

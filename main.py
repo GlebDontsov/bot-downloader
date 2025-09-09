@@ -18,6 +18,7 @@ from app.config.settings import settings
 from app.handlers import routers
 from app.middlewares import AuthMiddleware, RateLimitMiddleware
 from app.services.logger import setup_logger, get_logger
+from app.utils.funcs import cleanup_scheduler
 
 # Настраиваем логирование
 setup_logger()
@@ -87,7 +88,9 @@ async def main():
         dp.include_router(router)
     
     logger.info(f"Зарегистрировано роутеров: {len(routers)}")
-    
+
+    asyncio.create_task(cleanup_scheduler())
+
     try:
         # Получаем информацию о боте
         bot_info = await bot.get_me()

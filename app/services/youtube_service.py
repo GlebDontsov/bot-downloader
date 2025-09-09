@@ -4,7 +4,6 @@
 
 import os
 import re
-import shutil
 import asyncio
 import tempfile
 from pathlib import Path
@@ -12,12 +11,13 @@ from typing import Optional, Dict, List, Any
 from datetime import datetime
 
 import yt_dlp
+import aiofiles.os as aio_os
 from tortoise.exceptions import DoesNotExist
 
 from app.models import Video, User, DownloadHistory, DownloadStatus
 from app.config.settings import settings
 from app.services.logger import get_logger
-from app.utils.funcs import format_file_size, cleanup_old_files
+from app.utils.funcs import format_file_size
 
 logger = get_logger(__name__)
 
@@ -164,16 +164,15 @@ class YouTubeService:
             video=video,
             quality=quality,
             format_type=format_type,
+            file_path__not_isnull=True,
             status=DownloadStatus.COMPLETED
         ).first()
 
-        if existing_download and existing_download.file_path:
+        if existing_download:
             logger.info(
                 f"Видео уже было скачано ранее: {video.title} в качестве {quality} для пользователя {user.telegram_id}"
             )
             return existing_download
-
-        await cleanup_old_files()
 
         # Создаем запись о скачивании
         download = await DownloadHistory.create(
@@ -296,12 +295,12 @@ class YouTubeService:
 
         for download in old_downloads:
             try:
-                if download.file_path and os.path.exists(download.file_path):
-                    os.remove(download.file_path)
+                if download.file_path and await aio_os.path.exists(download.file_path):
+                    await aio_os.remove(download.file_path)
                     # Удаляем также пустую папку
                     parent_dir = os.path.dirname(download.file_path)
-                    if os.path.exists(parent_dir) and not os.listdir(parent_dir):
-                        os.rmdir(parent_dir)
+                    if await aio_os.path.exists(parent_dir) and not await aio_os.listdir(parent_dir):
+                        await aio_os.rmdir(parent_dir)
 
                     download.file_path = None
                     await download.save(update_fields=["file_path"])
