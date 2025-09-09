@@ -131,7 +131,7 @@ async def admin_cleanup_callback(callback: CallbackQuery, user: User):
     await callback.answer("🧹 Очищаем старые файлы...")
 
     try:
-        cleaned_count = await youtube_service.cleanup_old_files()
+        cleaned_count = await youtube_service.cleanup_all_files()
 
         cleanup_text = f"""
 🧹 <b>Очистка завершена</b>
