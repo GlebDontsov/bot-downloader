@@ -5,7 +5,7 @@ import aiofiles.os as aio_os
 
 from loguru import logger
 from app.models import DownloadHistory, DownloadStatus
-
+from app.utils.constants import CLEANUP_THRESHOLD, TARGET_USAGE_DISK
 
 def format_file_size(total_size: int) -> str:
     """Форматирует размер файла в удобочитаемый вид."""
@@ -36,7 +36,7 @@ def format_duration(seconds: int) -> str:
         return f"{minutes}:{seconds:02d}"
 
 
-async def cleanup_old_files(disk_path: str = "/", target_usage: float = 50) -> int:
+async def cleanup_old_files(disk_path: str = "/") -> int:
     """
     Очищает старые скачанные файлы при превышении лимита диска.
     Удаляет файлы от самых старых до достижения целевого уровня использования диска.
@@ -45,13 +45,16 @@ async def cleanup_old_files(disk_path: str = "/", target_usage: float = 50) -> i
     total, used, free = await async_disk_usage("/")
     current_usage_percent = (used / total) * 100
 
-    # Если использование меньше 90%, очистка не требуется
-    if current_usage_percent < 90:
+    if current_usage_percent < CLEANUP_THRESHOLD:
+        logger.info(
+            f"Очистка не требуется. Использование диска: {current_usage_percent:.1f}% "
+            f"(порог: {CLEANUP_THRESHOLD}%, свободно: {free / (1024 ** 3):.1f} GB)"
+        )
         return 0
 
     logger.warning(f"Переполнение диска! Использование: {current_usage_percent:.1f}%")
     cleaned_count = 0
-    target_bytes = total * (target_usage / 100)
+    target_bytes = total * (TARGET_USAGE_DISK / 100)
     bytes_to_free = used - target_bytes
 
     # Получаем файлы для удаления, отсортированные по дате завершения (самые старые first)
