@@ -7,7 +7,7 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from app.models import User
+from app.models import User, DownloadStatus, DownloadHistory
 from app.services.youtube_service import YouTubeService
 from app.services.logger import get_logger
 from app.utils.funcs import format_file_size, format_duration
@@ -111,21 +111,19 @@ async def youtube_url_handler(message: Message, user: User):
 
 @router.callback_query(F.data.startswith("download:"))
 async def download_callback(callback: CallbackQuery, user: User):
-    """Обработчик скачивания видео"""
+    """Обработчик скачивания видео с мгновенной отправкой"""
     try:
         _, video_id, format_type, quality, file_size = callback.data.split(":")
         video_id = int(video_id)
+        direct_url = None
 
         # Получаем видео из базы данных
         from app.models import Video
         video = await Video.get(id=video_id)
 
         await callback.answer("🚀 Начинаем скачивание...")
-
-        # Сохраняем ID исходного сообщения для дальнейшего обновления
         original_message = callback.message
 
-        # Обновляем исходное сообщение первый раз
         await original_message.edit_text(
             f"⏳ Скачиваем видео: <b>{video.title}</b>\n\n"
             f"🎯️ <b>Качество:</b> {quality}\n"
@@ -134,14 +132,77 @@ async def download_callback(callback: CallbackQuery, user: User):
             parse_mode="HTML"
         )
 
-        # Скачиваем видео
+        # Получаем прямую ссылку на видео
+        if video.available_formats:
+            direct_url = await youtube_service.get_direct_video_url(
+                video.available_formats,
+                quality.replace("p", ""),
+                format_type
+            )
+
+        if direct_url:
+            # Мгновенная отправка через прямую ссылку
+            try:
+                if format_type == "mp3":
+                    sent_message = await callback.message.answer_audio(
+                        direct_url,
+                        caption=f"🎵 <code>{video.title}</code>\n\n"
+                                f"📻 <b>Аудиодорожка</b>\n"
+                                f"👤 Автор: {video.channel_name}\n"
+                                f"📁 Формат: MP3\n"
+                                f"⏱️ Продолжительность: {format_duration(video.duration)}\n\n"
+                                f"✅ <b>Скачано мгновенно!</b>\n\n"
+                                f"🤖 Скачано через @savvy_video_bot",
+                        parse_mode="HTML",
+                    )
+                    # Сохраняем file_id для аудио
+                    telegram_file_id = sent_message.audio.file_id if sent_message.audio else None
+                else:
+                    sent_message = await callback.message.answer_video(
+                        direct_url,
+                        caption=f"🎬 <code>{video.title}</code>\n\n"
+                                f"📺 Канал: {video.channel_name}\n"
+                                f"🎯 Качество: {quality}\n"
+                                f"📁 Формат: {format_type.upper()}\n"
+                                f"⏱️ Продолжительность: {format_duration(video.duration)}\n\n"
+                                f"🔗 {video.youtube_url}\n\n"
+                                f"✅ <b>Видео готово к просмотру!</b>\n\n"
+                                f"🤖 Скачано через @savvy_video_bot",
+                        parse_mode="HTML",
+                    )
+                    # Сохраняем file_id для видео
+                    telegram_file_id = sent_message.video.file_id if sent_message.video else None
+
+                # Сохраняем информацию о скачивании
+                download_record = await DownloadHistory.create(
+                    user=user,
+                    video=video,
+                    quality=quality,
+                    format_type=format_type,
+                    status=DownloadStatus.COMPLETED,
+                    file_size=int(file_size),
+                    telegram_file_id=telegram_file_id,
+                )
+
+                # Увеличиваем счетчики
+                await video.increment_download_count()
+                await user.increment_downloads(int(file_size))
+
+                # Удаляем исходное сообщение с кнопками
+                await original_message.delete()
+
+                return
+
+            except Exception as e:
+                logger.warning(f"Мгновенная отправка не удалась: {e}, пробуем обычный метод")
+
+        # Если мгновенная отправка не сработала, используем обычный метод
         download_record = await youtube_service.download_video(
             video=video, user=user, quality=quality.replace("p", ""),
             format_type=format_type, file_size=int(file_size),
         )
 
         if download_record and download_record.is_completed:
-            # Отправляем файл пользователю
             if download_record.file_path and os.path.exists(download_record.file_path):
                 try:
                     # Создаем объект файла
@@ -150,7 +211,7 @@ async def download_callback(callback: CallbackQuery, user: User):
                         filename=f"{video.title[:50]}.{format_type}",
                     )
 
-                    # Отправляем файл и получаем отправленное сообщение
+                    # Отправляем файл
                     if format_type == "mp3":
                         sent_message = await callback.message.answer_audio(
                             file,
@@ -163,6 +224,8 @@ async def download_callback(callback: CallbackQuery, user: User):
                                     f"🤖 Скачано через @savvy_video_bot",
                             parse_mode="HTML",
                         )
+                        if sent_message.audio:
+                            download_record.telegram_file_id = sent_message.audio.file_id
                     else:
                         sent_message = await callback.message.answer_video(
                             file,
@@ -176,16 +239,10 @@ async def download_callback(callback: CallbackQuery, user: User):
                                     f"🤖 Скачано через @savvy_video_bot",
                             parse_mode="HTML",
                         )
-
-                    # Сохраняем file_id для повторного использования
-                    if format_type == "mp3" and sent_message.audio:
-                        download_record.telegram_file_id = sent_message.audio.file_id
-                    elif sent_message.video:
-                        download_record.telegram_file_id = sent_message.video.file_id
+                        if sent_message.video:
+                            download_record.telegram_file_id = sent_message.video.file_id
 
                     await download_record.save(update_fields=["telegram_file_id"])
-
-                    # удаляем исходное сообщение с кнопками
                     await original_message.delete()
 
                 except Exception as e:
@@ -198,28 +255,20 @@ async def download_callback(callback: CallbackQuery, user: User):
                     "❌ Файл не найден на сервере.\nПопробуйте скачать заново."
                 )
         else:
-            # Скачивание провалилось - обновляем исходное сообщение
-            error_msg = (
-                download_record.error_message
-                if download_record
-                else "Неизвестная ошибка"
-            )
+            error_msg = download_record.error_message if download_record else "Неизвестная ошибка"
             await original_message.edit_text(
                 f"❌ <b>Ошибка скачивания:</b>\n{error_msg}\n\n"
-                "Попробуйте:\n"
-                "• Выбрать другое качество\n"
-                "• Проверить ссылку\n"
-                "• Повторить попытку позже"
+                "Попробуйте:\n• Выбрать другое качество\n• Проверить ссылку\n• Повторить попытку позже"
             )
 
     except Exception as e:
         logger.error(f"Ошибка в download_callback: {e}")
-        # Используем original_message если он определен, иначе callback.message
         message_to_edit = original_message if 'original_message' in locals() else callback.message
         await message_to_edit.edit_text(
             "❌ Произошла ошибка при скачивании.\n"
             "Попробуйте позже или обратитесь к администратору."
         )
+
 
 @router.callback_query(F.data.startswith("info:"))
 async def info_callback(callback: CallbackQuery, user: User):
