@@ -145,10 +145,12 @@ async def download_callback(callback: CallbackQuery, user: User):
             if download_record.file_path and os.path.exists(download_record.file_path):
                 try:
                     # Создаем объект файла
-                    file = FSInputFile(
-                        download_record.file_path,
-                        filename=f"{video.title[:50]}.{format_type}",
-                    )
+                    file = download_record.telegram_file_id
+                    if not file:
+                        file = FSInputFile(
+                            download_record.file_path,
+                            filename=f"{video.title[:50]}.{format_type}",
+                        )
 
                     # Отправляем файл и получаем отправленное сообщение
                     if format_type == "mp3":
