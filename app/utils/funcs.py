@@ -5,7 +5,8 @@ import aiofiles.os as aio_os
 
 from loguru import logger
 from app.models import DownloadHistory, DownloadStatus
-from app.utils.constants import CLEANUP_THRESHOLD, TARGET_USAGE_DISK
+from app.utils.constants import CLEANUP_THRESHOLD, TARGET_USAGE_DISK, DISK_CLEANUP_INTERVAL
+
 
 def format_file_size(total_size: int) -> str:
     """Форматирует размер файла в удобочитаемый вид."""
@@ -115,8 +116,8 @@ async def cleanup_scheduler():
     while True:
         try:
             await cleanup_old_files()
-            await asyncio.sleep(300)
+            await asyncio.sleep(DISK_CLEANUP_INTERVAL)
 
         except Exception as e:
             logger.error(f"Ошибка в планировщике очистки: {e}")
-            await asyncio.sleep(300)
+            await asyncio.sleep(DISK_CLEANUP_INTERVAL)

@@ -142,11 +142,11 @@ async def download_callback(callback: CallbackQuery, user: User):
 
         if download_record and download_record.is_completed:
             # Отправляем файл пользователю
-            if download_record.file_path and os.path.exists(download_record.file_path):
+            if download_record.telegram_file_id or download_record.file_path and os.path.exists(download_record.file_path):
                 try:
                     # Создаем объект файла
                     file = download_record.telegram_file_id
-                    if not file:
+                    if not file and download_record.file_path:
                         file = FSInputFile(
                             download_record.file_path,
                             filename=f"{video.title[:50]}.{format_type}",
@@ -195,6 +195,7 @@ async def download_callback(callback: CallbackQuery, user: User):
                     await original_message.edit_text(
                         "❌ Ошибка при отправке файла.\nПопробуйте позже."
                     )
+                    await original_message.delete()
             else:
                 await original_message.edit_text(
                     "❌ Файл не найден на сервере.\nПопробуйте скачать заново."

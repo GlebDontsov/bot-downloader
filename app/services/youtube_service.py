@@ -13,6 +13,7 @@ from datetime import datetime
 import yt_dlp
 import aiofiles.os as aio_os
 from tortoise.exceptions import DoesNotExist
+from tortoise.expressions import Q
 
 from app.models import Video, User, DownloadHistory, DownloadStatus
 from app.config.settings import settings
@@ -164,8 +165,9 @@ class YouTubeService:
             video=video,
             quality=quality,
             format_type=format_type,
-            file_path__not_isnull=True,
             status=DownloadStatus.COMPLETED
+        ).filter(
+            Q(file_path__not_isnull=True) | Q(telegram_file_id__not_isnull=True)
         ).first()
 
         if existing_download:
