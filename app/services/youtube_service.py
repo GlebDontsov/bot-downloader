@@ -150,22 +150,15 @@ class YouTubeService:
                             "fps": fmt.get("fps"),
                             "vcodec": fmt.get("vcodec"),
                             "acodec": fmt.get("acodec"),
-                            "direct_url": fmt.get("url"),
                         }
                     )
         return formats
 
     async def download_video(
-            self,
-            video: Video,
-            user: User,
-            quality: str = "720",
-            format_type: str = "mp4",
-            file_size: int = settings.max_file_size,
+        self, video: Video, user: User, quality: str = "720p", format_type: str = "mp4", file_size: int = settings.max_file_size,
     ) -> Optional[DownloadHistory]:
-        """Скачивает видео (резервный метод, если мгновенная отправка не сработала)"""
+        """Скачивает видео"""
 
-        # Проверяем существующее скачивание
         existing_download = await DownloadHistory.filter(
             user=user,
             video=video,
@@ -176,7 +169,9 @@ class YouTubeService:
         ).first()
 
         if existing_download:
-            logger.info(f"Видео уже было скачано ранее: {video.title}")
+            logger.info(
+                f"Видео уже было скачано ранее: {video.title} в качестве {quality} для пользователя {user.telegram_id}"
+            )
             return existing_download
 
         # Создаем запись о скачивании
@@ -191,12 +186,15 @@ class YouTubeService:
         try:
             await download.mark_as_started()
 
-            # Создаем временную папку
+            # Создаем временную папку для скачивания
             temp_dir = tempfile.mkdtemp(dir=self.download_path)
+
+            # Настройки yt-dlp
             output_template = os.path.join(temp_dir, "%(title)s.%(ext)s")
 
-            # Настройки формата
+            # Определяем формат для скачивания
             if format_type == "mp3":
+                # Для аудио формата
                 format_selector = "bestaudio/best"
             else:
                 format_selector = f"bestvideo[height<={quality}][vcodec^=avc1]+bestaudio/best[height<={quality}]/best"
@@ -206,8 +204,13 @@ class YouTubeService:
                 "outtmpl": output_template,
                 "quiet": True,
                 "no_warnings": True,
+                "writeinfojson": False,
+                "writesubtitles": False,
+                "writeautomaticsub": False,
+                "ignoreerrors": False,
                 "extractaudio": format_type == "mp3",
                 "audioformat": "mp3" if format_type == "mp3" else None,
+                "audioquality": "192" if format_type == "mp3" else None,
             }
 
             # Добавляем ограничение размера файла
@@ -240,7 +243,16 @@ class YouTubeService:
             await video.increment_download_count()
             await user.increment_downloads(file_size)
 
-            logger.info(f"Видео успешно скачано: {video.title}")
+            # Обновляем информацию о видео
+            if not video.file_size:
+                video.file_size = file_size
+                video.quality = quality
+                video.format_id = format_type
+                await video.save(update_fields=["file_size", "quality", "format_id"])
+
+            logger.info(
+                f"Видео успешно скачано: {video.title} для пользователя {user.telegram_id}"
+            )
             return download
 
         except Exception as e:
@@ -248,23 +260,6 @@ class YouTubeService:
             logger.error(f"Ошибка скачивания видео {video.video_id}: {error_msg}")
             await download.mark_as_failed(error_msg)
             return download
-
-    @staticmethod
-    async def get_direct_video_url(formats: list, quality: str, format_type: str) -> Optional[str]:
-        """
-        Получает прямую ссылку на видео по качеству (например '720', '1080')
-        """
-        try:
-            target_height = int(quality)
-        except ValueError:
-            return None
-
-        # Ищем точное совпадение по высоте
-        for fmt in formats:
-            if fmt.get('direct_url') and fmt.get('height') == target_height and fmt.get('ext') == format_type:
-                return fmt['direct_url']
-
-        return None
 
     async def get_available_qualities(self, video: Video) -> List[Dict[str, Any]]:
         """Получает доступные качества для скачивания"""
