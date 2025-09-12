@@ -208,7 +208,7 @@ class YouTubeService:
         return await self.start_new_download(download, video, user, quality, format_type, file_size)
 
     async def start_new_download(
-            self, download: DownloadHistory, video: Video, user: User, quality: str, format_type: str, file_size: int
+        self, download: DownloadHistory, video: Video, user: User, quality: str, format_type: str, file_size: int
     ) -> DownloadHistory:
         """Начинает новое скачивание видео"""
         try:

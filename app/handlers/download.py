@@ -236,6 +236,7 @@ async def download_callback(callback: CallbackQuery, user: User):
             "Попробуйте позже или обратитесь к администратору."
         )
 
+
 @router.callback_query(F.data.startswith("info:"))
 async def info_callback(callback: CallbackQuery, user: User):
     """Обработчик получения подробной информации о видео"""
