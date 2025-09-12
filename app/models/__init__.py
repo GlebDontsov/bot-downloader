@@ -2,8 +2,8 @@
 Модели базы данных
 """
 
-from .user import User
-from .video import Video
-from .download_history import DownloadStatus, DownloadHistory
+from app.models.user import User
+from app.models.video import Video
+from app.models.download_history import DownloadStatus, DownloadHistory
 
 __all__ = ["User", "Video", "DownloadStatus", "DownloadHistory"]
