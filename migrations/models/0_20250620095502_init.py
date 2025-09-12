@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS "videos" (
     "video_id" VARCHAR(255) NOT NULL UNIQUE,
     "title" TEXT NOT NULL,
     "description" TEXT,
+    "url" VARCHAR(255),
     "duration" INT,
     "view_count" BIGINT,
     "like_count" BIGINT,
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS "videos" (
 COMMENT ON COLUMN "videos"."video_id" IS 'YouTube ID видео';
 COMMENT ON COLUMN "videos"."title" IS 'Название видео';
 COMMENT ON COLUMN "videos"."description" IS 'Описание видео';
+COMMENT ON COLUMN "videos"."url" IS 'Название канала';
 COMMENT ON COLUMN "videos"."duration" IS 'Длительность в секундах';
 COMMENT ON COLUMN "videos"."view_count" IS 'Количество просмотров';
 COMMENT ON COLUMN "videos"."like_count" IS 'Количество лайков';

@@ -19,13 +19,19 @@ router = Router()
 youtube_service = YouTubeService()
 
 
-@router.message(F.text.regexp(r"(?:https?://)?(?:www\.)?(?:youtube\.com|youtu\.be)"))
-async def youtube_url_handler(message: Message, user: User):
+@router.message(F.text.regexp(
+    r"(?:https?://)?(?:www\.)?(?:"
+    r"youtube\.com|youtu\.be|"
+    r"tiktok\.com/@[^/]+/video/\d+|"
+    r"vt\.tiktok\.com/[A-Za-z0-9]+"
+    r")"
+))
+async def url_handler(message: Message, user: User):
     """Обработчик YouTube ссылок"""
     url = message.text.strip()
 
     # Проверяем валидность URL
-    if not youtube_service.is_valid_youtube_url(url):
+    if not youtube_service.is_valid_url(url):
         await message.answer(
             "❌ Неверная ссылка на YouTube видео.\n"
             "Поддерживаемые форматы:\n"
@@ -185,7 +191,7 @@ async def download_callback(callback: CallbackQuery, user: User):
                                     f"🎯 Качество: {quality}\n"
                                     f"📁 Формат: {format_type.upper()}\n"
                                     f"⏱️ Продолжительность: {format_duration(video.duration)}\n\n"
-                                    f"🔗 {video.youtube_url}\n\n"
+                                    f"🔗 {video.url}\n\n"
                                     f"✅ <b>Видео готово к просмотру!</b>\n\n"
                                     f"🤖 Скачано через @savvy_video_bot",
                             parse_mode="HTML",
@@ -260,7 +266,7 @@ async def info_callback(callback: CallbackQuery, user: User):
 📅 <b>Дата загрузки:</b> {video.upload_date.strftime("%d.%m.%Y") if video.upload_date else "Неизвестно"}
 📊 <b>Скачиваний:</b> {video.download_count}
 
-🔗 <b>Ссылка:</b> <a href="{video.youtube_url}">Открыть на YouTube</a>
+🔗 <b>Ссылка:</b> <a href="{video.url}">Открыть на YouTube</a>
         """
 
         if video.description:

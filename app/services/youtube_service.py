@@ -35,11 +35,17 @@ class YouTubeService:
     def extract_video_id(url: str) -> Optional[str]:
         """Извлекает ID видео из URL YouTube"""
         patterns = [
+            # YouTube patterns
             r"(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+)",
             r"(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]+)",
             r"(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]+)",
             r"(?:https?://)?(?:www\.)?youtube\.com/v/([a-zA-Z0-9_-]+)",
             r"(?:https?://)?(?:www\.)?youtube\.com/shorts/([a-zA-Z0-9_-]+)",
+            # TikTok patterns - основной формат
+            r"(?:https?://)?(?:www\.|vm\.|vt\.)?tiktok\.com/@[^/]+/video/(\d+)",
+            r"(?:https?://)?(?:vm\.|vt\.)?tiktok\.com/([A-Za-z0-9]+)",
+            r"(?:https?://)?(?:www\.)?tiktok\.com/t/([a-zA-Z0-9]+)/",
+            r"(?:https?://)?m\.tiktok\.com/v/(\d+)\.html",
         ]
 
         for pattern in patterns:
@@ -50,7 +56,7 @@ class YouTubeService:
         return None
 
     @staticmethod
-    def is_valid_youtube_url(url: str) -> bool:
+    def is_valid_url(url: str) -> bool:
         """Проверяет, является ли URL валидным YouTube URL"""
         return YouTubeService.extract_video_id(url) is not None
 
@@ -120,6 +126,7 @@ class YouTubeService:
 
             video = await Video.create(
                 video_id=video_id,
+                url=url,
                 title=info.get("title", "Без названия"),
                 description=info.get("description"),
                 duration=duration,
@@ -247,25 +254,30 @@ class YouTubeService:
 
             if file_size > settings.max_file_size:
                 raise ValueError(f"Файл слишком большой: {format_file_size(file_size)}")
+            logger.warning("chek_1")
 
             # Скачиваем видео
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 await asyncio.get_event_loop().run_in_executor(
-                    None, ydl.download, [video.youtube_url]
+                    None, ydl.download, [video.url]
                 )
+            logger.warning("chek_2")
 
             # Находим скачанный файл
             downloaded_files = list(Path(temp_dir).glob("*"))
             if not downloaded_files:
                 raise Exception("Файл не был скачан")
+            logger.warning("chek_3")
 
             downloaded_file = downloaded_files[0]
             actual_file_size = downloaded_file.stat().st_size
+            logger.warning("chek_4")
 
             # Завершаем скачивание
             await download.mark_as_completed(
                 file_path=str(downloaded_file), file_size=actual_file_size
             )
+            logger.warning("chek_5")
 
             await self.update_download_statistics(video, user, actual_file_size)
 
@@ -275,6 +287,7 @@ class YouTubeService:
                 video.quality = quality
                 video.format_id = format_type
                 await video.save(update_fields=["file_size", "quality", "format_id"])
+            logger.warning("chek_5")
 
             logger.info(
                 f"Видео успешно скачано: {video.title} для пользователя {user.telegram_id}"
@@ -374,7 +387,7 @@ class YouTubeService:
                 {
                     "title": v.title,
                     "download_count": v.download_count,
-                    "youtube_url": v.youtube_url,
+                    "url": v.url,
                 }
                 for v in popular_videos
             ],
