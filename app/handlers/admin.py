@@ -152,7 +152,7 @@ async def admin_export_stats(callback: CallbackQuery, user: User):
                     f"📥 Скачиваний: {total_downloads}"
         )
 
-        await callback.answer("✅ Файл со статистикой отправлен")
+        await admin_back_callback(callback, user)
 
     except Exception as e:
         await callback.answer("❌ Ошибка при генерации статистики")
