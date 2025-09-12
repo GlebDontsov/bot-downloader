@@ -115,6 +115,7 @@ async def download_callback(callback: CallbackQuery, user: User):
     try:
         _, video_id, format_type, quality, file_size = callback.data.split(":")
         video_id = int(video_id)
+        quality = quality.replace("p", "")
 
         # Получаем видео из базы данных
         from app.models import Video
@@ -122,22 +123,33 @@ async def download_callback(callback: CallbackQuery, user: User):
 
         await callback.answer("🚀 Начинаем скачивание...")
 
+        existing_download = await youtube_service.get_existing_download(
+            video=video,
+            quality=quality,
+            format_type=format_type,
+        )
+
         # Сохраняем ID исходного сообщения для дальнейшего обновления
         original_message = callback.message
 
         # Обновляем исходное сообщение первый раз
-        await original_message.edit_text(
-            f"⏳ Скачиваем видео: <b>{video.title}</b>\n\n"
-            f"🎯️ <b>Качество:</b> {quality}\n"
-            f"📁 <b>Формат:</b> {format_type.upper()}\n\n"
-            "🕐 <i>Это может занять некоторое время...</i>",
-            parse_mode="HTML"
-        )
+        if not existing_download:
+            await original_message.edit_text(
+                f"⏳ Скачиваем видео: <b>{video.title}</b>\n\n"
+                f"🎯️ <b>Качество:</b> {quality}\n"
+                f"📁 <b>Формат:</b> {format_type.upper()}\n\n"
+                "🕐 <i>Это может занять некоторое время...</i>",
+                parse_mode="HTML"
+            )
 
         # Скачиваем видео
         download_record = await youtube_service.download_video(
-            video=video, user=user, quality=quality.replace("p", ""),
-            format_type=format_type, file_size=int(file_size),
+            video=video,
+            user=user,
+            existing_download=existing_download,
+            quality=quality,
+            format_type=format_type,
+            file_size=int(file_size),
         )
 
         if download_record and download_record.is_completed:
@@ -223,6 +235,7 @@ async def download_callback(callback: CallbackQuery, user: User):
             "❌ Произошла ошибка при скачивании.\n"
             "Попробуйте позже или обратитесь к администратору."
         )
+
 
 @router.callback_query(F.data.startswith("info:"))
 async def info_callback(callback: CallbackQuery, user: User):
