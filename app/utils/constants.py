@@ -1,3 +1,6 @@
+import pytz
+
 CLEANUP_THRESHOLD = 80
 TARGET_USAGE_DISK = 45
 DISK_CLEANUP_INTERVAL = 600
+MOSCOW_TZ = pytz.timezone('Europe/Moscow')

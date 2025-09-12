@@ -1,9 +1,12 @@
 """
 Хендлеры для администраторов
 """
+import os
+from pathlib import Path
+from datetime import datetime, timedelta
 
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -12,6 +15,8 @@ from app.services.user_service import UserService
 from app.services.youtube_service import YouTubeService
 from app.services.logger import get_logger
 from app.middlewares import AdminMiddleware
+from app.utils.funcs import generate_stats_file
+from app.utils.constants import MOSCOW_TZ
 
 logger = get_logger(__name__)
 router = Router()
@@ -122,6 +127,41 @@ async def admin_stats_callback(callback: CallbackQuery, user: User):
     await callback.message.edit_text(
         stats_text, reply_markup=builder.as_markup(), parse_mode="HTML"
     )
+
+
+@router.callback_query(F.data == "admin_export_stats")
+async def admin_export_stats(callback: CallbackQuery, user: User):
+    """Экспорт статистики по пользователям за предыдущий день"""
+
+    # Получаем дату предыдущего дня
+    moscow_now = datetime.now(MOSCOW_TZ)
+    moscow_yesterday = (moscow_now - timedelta(days=1)).date()
+
+    filename = Path(f"stats_{moscow_yesterday.strftime('%Y%m%d')}.txt")
+
+    try:
+        # Генерируем файл со статистикой
+        text_content, user_downloads, total_downloads = await generate_stats_file(moscow_yesterday)
+
+        filename.write_text(text_content)
+
+        # Отправляем файл
+        await callback.message.answer_document(
+            document=BufferedInputFile(filename.read_bytes(), filename=filename.name),
+            caption=f"📊 Статистика скачиваний за {moscow_yesterday.strftime('%d.%m.%Y')}\n"
+                    f"👥 Пользователей: {len(user_downloads)}\n"
+                    f"📥 Скачиваний: {total_downloads}"
+        )
+
+        await callback.answer("✅ Файл со статистикой отправлен")
+
+    except Exception as e:
+        await callback.answer("❌ Ошибка при генерации статистики")
+        logger.error(f"Ошибка при генерации статистики: {e}")
+
+    finally:
+        if os.path.exists(filename):
+            os.remove(filename)
 
 
 @router.callback_query(F.data == "admin_cleanup")
