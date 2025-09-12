@@ -11,6 +11,7 @@ from tortoise.exceptions import DoesNotExist
 from app.models import User, DownloadHistory
 from app.config.settings import settings
 from app.services.logger import get_logger
+from app.utils.funcs import get_moscow_time
 
 logger = get_logger(__name__)
 
@@ -55,7 +56,7 @@ class UserService:
                 last_name=telegram_user.last_name,
                 language_code=telegram_user.language_code,
                 is_admin=is_admin,
-                last_activity=datetime.utcnow(),
+                last_activity=get_moscow_time(),
             )
 
             logger.info(f"Создан новый пользователь: {user}")
@@ -104,13 +105,13 @@ class UserService:
             )
 
             # Статистика за сегодня
-            today = datetime.utcnow().date()
+            today =get_moscow_time().date()
             today_downloads = await DownloadHistory.filter(
                 user=user, created_at__gte=today
             ).count()
 
             # Статистика за неделю
-            week_ago = datetime.utcnow() - timedelta(days=7)
+            week_ago = get_moscow_time() - timedelta(days=7)
             week_downloads = await DownloadHistory.filter(
                 user=user, created_at__gte=week_ago
             ).count()
@@ -188,5 +189,5 @@ class UserService:
     @staticmethod
     async def get_active_users_count(days: int = 7) -> int:
         """Получает количество активных пользователей за период"""
-        since = datetime.utcnow() - timedelta(days=days)
+        since = get_moscow_time() - timedelta(days=days)
         return await User.filter(last_activity__gte=since).count()

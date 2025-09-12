@@ -1,6 +1,8 @@
 """
 Модель истории скачиваний
 """
+import pytz
+from datetime import datetime
 
 from enum import Enum
 from tortoise.models import Model
@@ -92,20 +94,16 @@ class DownloadHistory(Model):
 
     async def mark_as_started(self) -> None:
         """Отмечает скачивание как начатое"""
-        from datetime import datetime
-
         self.status = DownloadStatus.DOWNLOADING
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now(pytz.timezone('Europe/Moscow'))
         await self.save(update_fields=["status", "started_at"])
 
     async def mark_as_completed(
         self, file_path: str, file_size: int = None, telegram_file_id: str = None
     ) -> None:
         """Отмечает скачивание как завершенное"""
-        from datetime import datetime
-
         self.status = DownloadStatus.COMPLETED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(pytz.timezone('Europe/Moscow'))
         self.file_path = file_path
         if file_size:
             self.file_size = file_size
@@ -123,9 +121,7 @@ class DownloadHistory(Model):
 
     async def mark_as_failed(self, error_message: str) -> None:
         """Отмечает скачивание как проваленное"""
-        from datetime import datetime
-
         self.status = DownloadStatus.FAILED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(pytz.timezone('Europe/Moscow'))
         self.error_message = error_message
         await self.save(update_fields=["status", "completed_at", "error_message"])

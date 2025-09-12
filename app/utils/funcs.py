@@ -126,17 +126,12 @@ async def cleanup_scheduler():
 
 async def generate_stats_file(yesterday: datetime.date) -> tuple[str, dict, int]:
     """Генерирует файл со статистикой по пользователям за указанный день в читаемом формате"""
-    moscow_yesterday_start = MOSCOW_TZ.localize(
-        datetime.combine(yesterday, datetime.min.time())
-    )
-    moscow_yesterday_end = MOSCOW_TZ.localize(
-        datetime.combine(yesterday + timedelta(days=1), datetime.min.time())
-    )
+    yesterday_start = datetime.combine(yesterday, datetime.min.time())
+    yesterday_end = datetime.combine(yesterday + timedelta(days=1), datetime.min.time())
 
-    # Получаем статистику по пользователям за указанный день
     user_stats = await DownloadHistory.filter(
-        created_at__gte=moscow_yesterday_start.astimezone(timezone.utc),
-        created_at__lt=moscow_yesterday_end.astimezone(timezone.utc)
+        created_at__gte=yesterday_start,
+        created_at__lt=yesterday_end
     ).prefetch_related("user")
 
     # Группируем по пользователям
@@ -200,3 +195,10 @@ async def generate_stats_file(yesterday: datetime.date) -> tuple[str, dict, int]
     text_content += f"• Отчет сгенерирован: {yesterday.strftime('%d.%m.%Y')}"
 
     return text_content, user_downloads, total_downloads
+
+
+def get_moscow_time() -> datetime:
+    """
+    Упрощенная версия получения московского времени
+    """
+    return datetime.now(MOSCOW_TZ)

@@ -5,7 +5,6 @@ YouTube Downloader Bot
 import asyncio
 import sys
 from pathlib import Path
-from datetime import datetime
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -18,7 +17,7 @@ from app.config.settings import settings
 from app.handlers import routers
 from app.middlewares import AuthMiddleware, RateLimitMiddleware
 from app.services.logger import setup_logger, get_logger
-from app.utils.funcs import cleanup_scheduler
+from app.utils.funcs import cleanup_scheduler, get_moscow_time
 
 # Настраиваем логирование
 setup_logger()
@@ -108,7 +107,7 @@ async def main():
                         "🟢 <b>Бот запущен!</b>\n\n"
                         f"🤖 <b>Имя:</b> {bot_info.full_name}\n"
                         f"🔗 <b>Username:</b> @{bot_info.username}\n"
-                        f"🕐 <b>Время запуска:</b> {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n\n"
+                        f"🕐 <b>Время запуска:</b> {get_moscow_time().strftime('%d.%m.%Y %H:%M:%S')}\n\n"
                         "Система готова к работе!",
                         parse_mode=ParseMode.HTML
                     )

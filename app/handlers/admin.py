@@ -3,7 +3,7 @@
 """
 import os
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
@@ -15,8 +15,7 @@ from app.services.user_service import UserService
 from app.services.youtube_service import YouTubeService
 from app.services.logger import get_logger
 from app.middlewares import AdminMiddleware
-from app.utils.funcs import generate_stats_file
-from app.utils.constants import MOSCOW_TZ
+from app.utils.funcs import generate_stats_file, get_moscow_time
 
 logger = get_logger(__name__)
 router = Router()
@@ -134,7 +133,7 @@ async def admin_export_stats(callback: CallbackQuery, user: User):
     """Экспорт статистики по пользователям за предыдущий день"""
 
     # Получаем дату предыдущего дня
-    moscow_now = datetime.now(MOSCOW_TZ)
+    moscow_now = get_moscow_time()
     moscow_yesterday = (moscow_now - timedelta(days=1)).date()
 
     filename = Path(f"stats_{moscow_yesterday.strftime('%Y%m%d')}.txt")

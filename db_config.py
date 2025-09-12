@@ -28,5 +28,5 @@ TORTOISE_ORM = {
         }
     },
     "use_tz": False,
-    "timezone": "UTC"
+    "timezone": "Europe/Moscow"
 }

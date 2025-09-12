@@ -18,7 +18,8 @@ from tortoise.expressions import Q
 from app.models import Video, User, DownloadHistory, DownloadStatus
 from app.config.settings import settings
 from app.services.logger import get_logger
-from app.utils.funcs import format_file_size
+from app.utils.funcs import format_file_size, get_moscow_time
+from app.utils.constants import MOSCOW_TZ
 
 logger = get_logger(__name__)
 
@@ -107,8 +108,12 @@ class YouTubeService:
             upload_date = None
             if info.get("upload_date"):
                 try:
-                    upload_date = datetime.strptime(
+                    upload_date_naive = datetime.strptime(
                         info["upload_date"], "%Y%m%d"
+                    ).date()
+
+                    upload_date = MOSCOW_TZ.localize(
+                        datetime.combine(upload_date_naive, datetime.min.time())
                     ).date()
                 except ValueError:
                     pass
@@ -325,7 +330,7 @@ class YouTubeService:
         ).count()
 
         # Статистика за сегодня
-        today = datetime.utcnow().date()
+        today = get_moscow_time().date()
         today_downloads = await DownloadHistory.filter(created_at__gte=today).count()
 
         # Популярные видео
