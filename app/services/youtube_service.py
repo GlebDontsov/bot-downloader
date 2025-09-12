@@ -139,7 +139,8 @@ class YouTubeService:
             logger.error(f"Ошибка создания видео {url}: {e}")
             return None
 
-    def _extract_formats(self, info: Dict[str, Any]) -> List[Dict[str, Any]]:
+    @staticmethod
+    def _extract_formats(info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Извлекает доступные форматы видео"""
         formats = []
         if "formats" in info:
@@ -164,9 +165,16 @@ class YouTubeService:
         self, video: Video, user: User, quality: str = "720p", format_type: str = "mp4", file_size: int = settings.max_file_size,
     ) -> Optional[DownloadHistory]:
         """Скачивает видео"""
+        # Создаем запись о скачивании
+        download = await DownloadHistory.create(
+            user=user,
+            video=video,
+            quality=quality,
+            format_type=format_type,
+            status=DownloadStatus.PENDING,
+        )
 
         existing_download = await DownloadHistory.filter(
-            user=user,
             video=video,
             quality=quality,
             format_type=format_type,
@@ -176,19 +184,17 @@ class YouTubeService:
         ).first()
 
         if existing_download:
+            download.telegram_file_id = existing_download.telegram_file_id
+            download.status = existing_download.status
+            download.file_size = existing_download.file_size
+            await download.save(update_fields=["status", "file_size", "telegram_file_id"])
+
+            await self.update_download_statistics(video, user, file_size)
+
             logger.info(
                 f"Видео уже было скачано ранее: {video.title} в качестве {quality} для пользователя {user.telegram_id}"
             )
             return existing_download
-
-        # Создаем запись о скачивании
-        download = await DownloadHistory.create(
-            user=user,
-            video=video,
-            quality=quality,
-            format_type=format_type,
-            status=DownloadStatus.PENDING,
-        )
 
         try:
             await download.mark_as_started()
@@ -246,9 +252,7 @@ class YouTubeService:
                 file_path=str(downloaded_file), file_size=file_size
             )
 
-            # Обновляем статистику
-            await video.increment_download_count()
-            await user.increment_downloads(file_size)
+            await self.update_download_statistics(video, user, file_size)
 
             # Обновляем информацию о видео
             if not video.file_size:
@@ -267,6 +271,11 @@ class YouTubeService:
             logger.error(f"Ошибка скачивания видео {video.video_id}: {error_msg}")
             await download.mark_as_failed(error_msg)
             return download
+
+    @staticmethod
+    async def update_download_statistics(video: Video, user: User, file_size: int):
+        await video.increment_download_count()
+        await user.increment_downloads(file_size)
 
     async def get_available_qualities(self, video: Video) -> List[Dict[str, Any]]:
         """Получает доступные качества для скачивания"""
@@ -291,7 +300,8 @@ class YouTubeService:
         # Сортируем по качеству (по убыванию)
         return sorted(qualities.values(), key=lambda x: x["height"], reverse=True)
 
-    async def cleanup_all_files(self) -> int:
+    @staticmethod
+    async def cleanup_all_files() -> int:
         """Очищает старые скачанные файлы"""
         cleaned_count = 0
 
@@ -319,7 +329,8 @@ class YouTubeService:
         logger.info(f"Очищено {cleaned_count} старых файлов")
         return cleaned_count
 
-    async def get_download_stats(self) -> Dict[str, Any]:
+    @staticmethod
+    async def get_download_stats() -> Dict[str, Any]:
         """Получает статистику скачиваний"""
         total_downloads = await DownloadHistory.all().count()
         completed_downloads = await DownloadHistory.filter(
