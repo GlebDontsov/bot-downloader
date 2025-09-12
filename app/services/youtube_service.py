@@ -161,8 +161,26 @@ class YouTubeService:
                     )
         return formats
 
+    @staticmethod
+    async def get_existing_download(video: Video, quality: str, format_type: str) -> Optional[DownloadHistory]:
+        """Возвращает существующую запись о скачивании если она есть"""
+        return await DownloadHistory.filter(
+            video=video,
+            quality=quality,
+            format_type=format_type,
+            status=DownloadStatus.COMPLETED
+        ).filter(
+            Q(file_path__not_isnull=True) | Q(telegram_file_id__not_isnull=True)
+        ).first()
+
     async def download_video(
-        self, video: Video, user: User, quality: str = "720p", format_type: str = "mp4", file_size: int = settings.max_file_size,
+        self,
+        video: Video,
+        user: User,
+        existing_download: Optional[DownloadHistory],
+        quality: str = "720p",
+        format_type: str = "mp4",
+        file_size: int = settings.max_file_size,
     ) -> Optional[DownloadHistory]:
         """Скачивает видео"""
         # Создаем запись о скачивании
@@ -173,15 +191,6 @@ class YouTubeService:
             format_type=format_type,
             status=DownloadStatus.PENDING,
         )
-
-        existing_download = await DownloadHistory.filter(
-            video=video,
-            quality=quality,
-            format_type=format_type,
-            status=DownloadStatus.COMPLETED
-        ).filter(
-            Q(file_path__not_isnull=True) | Q(telegram_file_id__not_isnull=True)
-        ).first()
 
         if existing_download:
             download.telegram_file_id = existing_download.telegram_file_id
@@ -196,6 +205,12 @@ class YouTubeService:
             )
             return existing_download
 
+        return await self.start_new_download(download, video, user, quality, format_type, file_size)
+
+    async def start_new_download(
+            self, download: DownloadHistory, video: Video, user: User, quality: str, format_type: str, file_size: int
+    ) -> DownloadHistory:
+        """Начинает новое скачивание видео"""
         try:
             await download.mark_as_started()
 
@@ -245,18 +260,18 @@ class YouTubeService:
                 raise Exception("Файл не был скачан")
 
             downloaded_file = downloaded_files[0]
-            file_size = downloaded_file.stat().st_size
+            actual_file_size = downloaded_file.stat().st_size
 
             # Завершаем скачивание
             await download.mark_as_completed(
-                file_path=str(downloaded_file), file_size=file_size
+                file_path=str(downloaded_file), file_size=actual_file_size
             )
 
-            await self.update_download_statistics(video, user, file_size)
+            await self.update_download_statistics(video, user, actual_file_size)
 
             # Обновляем информацию о видео
             if not video.file_size:
-                video.file_size = file_size
+                video.file_size = actual_file_size
                 video.quality = quality
                 video.format_id = format_type
                 await video.save(update_fields=["file_size", "quality", "format_id"])
