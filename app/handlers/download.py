@@ -22,7 +22,7 @@ youtube_service = YouTubeService()
 @router.message(F.text.regexp(
     r"(?:https?://)?(?:www\.)?(?:"
     r"youtube\.com|youtu\.be|"
-    r"tiktok\.com/@[^/]+/video/\d+|"
+    r"tiktok\.com/(?:@[^/]+/video/\d+|t/[A-Za-z0-9]+/)|"
     r"vt\.tiktok\.com/[A-Za-z0-9]+"
     r")"
 ))
