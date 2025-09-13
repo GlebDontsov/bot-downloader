@@ -130,24 +130,22 @@ async def admin_stats_callback(callback: CallbackQuery, user: User):
 
 @router.callback_query(F.data == "admin_export_stats")
 async def admin_export_stats(callback: CallbackQuery, user: User):
-    """Экспорт статистики по пользователям за предыдущий день"""
+    """Экспорт статистики по пользователям за последние 30 дней"""
 
-    # Получаем дату предыдущего дня
+    # Генерируем имя файла с текущей датой
     moscow_now = get_moscow_time()
-    moscow_yesterday = (moscow_now - timedelta(days=1)).date()
-
-    filename = Path(f"stats_{moscow_yesterday.strftime('%Y%m%d')}.txt")
+    filename = Path(f"stats_30days_{moscow_now.strftime('%Y%m%d_%H%M')}.txt")
 
     try:
-        # Генерируем файл со статистикой
-        text_content, user_downloads, total_downloads = await generate_stats_file(moscow_yesterday)
+        # Генерируем файл со статистикой (теперь без параметра даты)
+        text_content, user_downloads, total_downloads = await generate_stats_file()
 
-        filename.write_text(text_content)
+        filename.write_text(text_content, encoding='utf-8')
 
         # Отправляем файл
         await callback.message.answer_document(
             document=BufferedInputFile(filename.read_bytes(), filename=filename.name),
-            caption=f"📊 Статистика скачиваний за {moscow_yesterday.strftime('%d.%m.%Y')}\n"
+            caption=f"📊 Статистика скачиваний за последние 30 дней\n"
                     f"👥 Пользователей: {len(user_downloads)}\n"
                     f"📥 Скачиваний: {total_downloads}"
         )

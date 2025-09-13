@@ -3,6 +3,8 @@ import shutil
 import asyncio
 import aiofiles.os as aio_os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from datetime import timedelta
 
 from loguru import logger
 from app.models import DownloadHistory, DownloadStatus
@@ -124,14 +126,14 @@ async def cleanup_scheduler():
             await asyncio.sleep(DISK_CLEANUP_INTERVAL)
 
 
-async def generate_stats_file(yesterday: datetime.date) -> tuple[str, dict, int]:
-    """Генерирует файл со статистикой по пользователям за указанный день в читаемом формате"""
-    yesterday_start = datetime.combine(yesterday, datetime.min.time())
-    yesterday_end = datetime.combine(yesterday + timedelta(days=1), datetime.min.time())
+async def generate_stats_file() -> tuple[str, dict, int]:
+    """Генерирует файл со статистикой по пользователям за последние 30 дней в читаемом формате"""
+    # Изменяем временной диапазон на последние 30 дней
+    thirty_days_ago = get_moscow_time() - timedelta(days=30)
+    thirty_days_ago_start = datetime.combine(thirty_days_ago.date(), datetime.min.time())
 
     user_stats = await DownloadHistory.filter(
-        created_at__gte=yesterday_start,
-        created_at__lt=yesterday_end
+        created_at__gte=thirty_days_ago_start
     ).prefetch_related("user")
 
     # Группируем по пользователям
@@ -157,8 +159,9 @@ async def generate_stats_file(yesterday: datetime.date) -> tuple[str, dict, int]
             user_downloads[user_id]["failed"] += 1
 
     # Создаем текстовое содержимое
-    text_content = f"📊 СТАТИСТИКА СКАЧИВАНИЙ ЗА {yesterday.strftime('%d.%m.%Y')}\n"
-    text_content += "=" * 50 + "\n\n"
+    text_content = f"📊 СТАТИСТИКА СКАЧИВАНИЙ ЗА ПОСЛЕДНИЕ 30 ДНЕЙ\n"
+    text_content += f"Период: {thirty_days_ago.strftime('%d.%m.%Y')} - {datetime.now().strftime('%d.%m.%Y')}\n"
+    text_content += "=" * 60 + "\n\n"
 
     # Сортируем пользователей по количеству скачиваний (по убыванию)
     sorted_users = sorted(user_downloads.items(), key=lambda x: x[1]["total"], reverse=True)
@@ -192,7 +195,7 @@ async def generate_stats_file(yesterday: datetime.date) -> tuple[str, dict, int]
     text_content += "-" * 30 + "\n"
     text_content += "• Анонимные пользователи - те, кто начал скачивание\n  до регистрации в боте\n"
     text_content += "• Успешность считается как отношение успешных\n  скачиваний к общему количеству попыток\n"
-    text_content += f"• Отчет сгенерирован: {yesterday.strftime('%d.%m.%Y')}"
+    text_content += f"• Отчет сгенерирован: {get_moscow_time().strftime('%d.%m.%Y %H:%M')}"
 
     return text_content, user_downloads, total_downloads
 
