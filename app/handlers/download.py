@@ -23,7 +23,8 @@ youtube_service = YouTubeService()
     r"(?:https?://)?(?:www\.)?(?:"
     r"youtube\.com|youtu\.be|"
     r"tiktok\.com/(?:@[^/]+/video/\d+|t/[A-Za-z0-9]+/)|"
-    r"vt\.tiktok\.com/[A-Za-z0-9]+"
+    r"vt\.tiktok\.com/[A-Za-z0-9]+|"
+    r"rutube\.ru/(?:video|shorts)/[a-f0-9]+"
     r")"
 ))
 async def url_handler(message: Message, user: User):
