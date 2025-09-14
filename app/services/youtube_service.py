@@ -259,7 +259,7 @@ class YouTubeService:
             temp_dir = tempfile.mkdtemp(dir=self.download_path)
 
             # Настройки yt-dlp
-            output_template = os.path.join(temp_dir, "%(title)s.%(ext)s")
+            output_template = os.path.join(temp_dir, "%(title).70s.%(ext)s")
 
             # Определяем формат для скачивания
             if format_type == "mp3":
