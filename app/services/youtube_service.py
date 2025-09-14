@@ -33,7 +33,7 @@ class YouTubeService:
 
     @staticmethod
     def extract_video_id(url: str) -> Optional[str]:
-        """Извлекает ID видео из URL YouTube"""
+        """Извлекает ID видео из URL YouTube, TikTok и Rutube"""
         patterns = [
             # YouTube patterns
             r"(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+)",
@@ -41,11 +41,16 @@ class YouTubeService:
             r"(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]+)",
             r"(?:https?://)?(?:www\.)?youtube\.com/v/([a-zA-Z0-9_-]+)",
             r"(?:https?://)?(?:www\.)?youtube\.com/shorts/([a-zA-Z0-9_-]+)",
-            # TikTok patterns - основной формат
+            # TikTok patterns
             r"(?:https?://)?(?:www\.|vm\.|vt\.)?tiktok\.com/@[^/]+/video/(\d+)",
             r"(?:https?://)?(?:vm\.|vt\.)?tiktok\.com/([A-Za-z0-9]+)",
             r"(?:https?://)?(?:www\.)?tiktok\.com/t/([a-zA-Z0-9]+)/",
             r"(?:https?://)?m\.tiktok\.com/v/(\d+)\.html",
+            # Rutube patterns
+            r"(?:https?://)?(?:www\.)?rutube\.ru/video/([a-f0-9]+)/?",
+            r"(?:https?://)?(?:www\.)?rutube\.ru/shorts/([a-f0-9]+)/?",
+            r"(?:https?://)?(?:www\.)?rutube\.ru/video/([a-f0-9]+)\?",
+            r"(?:https?://)?(?:www\.)?rutube\.ru/shorts/([a-f0-9]+)\?"
         ]
 
         for pattern in patterns:
@@ -53,7 +58,7 @@ class YouTubeService:
             if match:
                 return match.group(1)
 
-        return None
+        return
 
     @staticmethod
     def is_valid_url(url: str) -> bool:
@@ -78,7 +83,6 @@ class YouTubeService:
                 info = await asyncio.get_event_loop().run_in_executor(
                     None, ydl.extract_info, url, False
                 )
-
                 return info
 
         except Exception as e:
@@ -153,6 +157,15 @@ class YouTubeService:
         if "formats" in info:
             for fmt in info["formats"]:
                 if fmt.get("vcodec") != "none":  # Только видео форматы
+                    file_size = fmt.get("filesize")
+
+                    # Если filesize отсутствует, пытаемся рассчитать
+                    if not file_size and fmt.get("tbr") is not None and info.get('duration'):
+                        try:
+                            file_size = int((fmt['tbr'] * 1000 * info['duration']) / 8)
+                        except (TypeError, KeyError):
+                            file_size = None
+
                     formats.append(
                         {
                             "format_id": fmt.get("format_id"),
@@ -160,7 +173,7 @@ class YouTubeService:
                             "quality": fmt.get("quality"),
                             "height": fmt.get("height"),
                             "width": fmt.get("width"),
-                            "filesize": fmt.get("filesize"),
+                            "filesize": file_size,
                             "fps": fmt.get("fps"),
                             "vcodec": fmt.get("vcodec"),
                             "acodec": fmt.get("acodec"),
@@ -254,30 +267,25 @@ class YouTubeService:
 
             if file_size > settings.max_file_size:
                 raise ValueError(f"Файл слишком большой: {format_file_size(file_size)}")
-            logger.warning("chek_1")
 
             # Скачиваем видео
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 await asyncio.get_event_loop().run_in_executor(
                     None, ydl.download, [video.url]
                 )
-            logger.warning("chek_2")
 
             # Находим скачанный файл
             downloaded_files = list(Path(temp_dir).glob("*"))
             if not downloaded_files:
                 raise Exception("Файл не был скачан")
-            logger.warning("chek_3")
 
             downloaded_file = downloaded_files[0]
             actual_file_size = downloaded_file.stat().st_size
-            logger.warning("chek_4")
 
             # Завершаем скачивание
             await download.mark_as_completed(
                 file_path=str(downloaded_file), file_size=actual_file_size
             )
-            logger.warning("chek_5")
 
             await self.update_download_statistics(video, user, actual_file_size)
 
@@ -287,7 +295,6 @@ class YouTubeService:
                 video.quality = quality
                 video.format_id = format_type
                 await video.save(update_fields=["file_size", "quality", "format_id"])
-            logger.warning("chek_5")
 
             logger.info(
                 f"Видео успешно скачано: {video.title} для пользователя {user.telegram_id}"
