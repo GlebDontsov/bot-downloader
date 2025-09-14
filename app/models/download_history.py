@@ -1,6 +1,7 @@
 """
 Модель истории скачиваний
 """
+
 import pytz
 from datetime import datetime
 
@@ -95,7 +96,7 @@ class DownloadHistory(Model):
     async def mark_as_started(self) -> None:
         """Отмечает скачивание как начатое"""
         self.status = DownloadStatus.DOWNLOADING
-        self.started_at = datetime.now(pytz.timezone('Europe/Moscow'))
+        self.started_at = datetime.now(pytz.timezone("Europe/Moscow"))
         await self.save(update_fields=["status", "started_at"])
 
     async def mark_as_completed(
@@ -103,7 +104,7 @@ class DownloadHistory(Model):
     ) -> None:
         """Отмечает скачивание как завершенное"""
         self.status = DownloadStatus.COMPLETED
-        self.completed_at = datetime.now(pytz.timezone('Europe/Moscow'))
+        self.completed_at = datetime.now(pytz.timezone("Europe/Moscow"))
         self.file_path = file_path
         if file_size:
             self.file_size = file_size
@@ -122,6 +123,6 @@ class DownloadHistory(Model):
     async def mark_as_failed(self, error_message: str) -> None:
         """Отмечает скачивание как проваленное"""
         self.status = DownloadStatus.FAILED
-        self.completed_at = datetime.now(pytz.timezone('Europe/Moscow'))
+        self.completed_at = datetime.now(pytz.timezone("Europe/Moscow"))
         self.error_message = error_message
         await self.save(update_fields=["status", "completed_at", "error_message"])

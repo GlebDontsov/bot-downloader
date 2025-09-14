@@ -1,6 +1,7 @@
 """
 Модель пользователя
 """
+
 import pytz
 from datetime import datetime
 
@@ -59,7 +60,7 @@ class User(Model):
 
     async def update_activity(self) -> None:
         """Обновляет время последней активности"""
-        self.last_activity = datetime.now(pytz.timezone('Europe/Moscow'))
+        self.last_activity = datetime.now(pytz.timezone("Europe/Moscow"))
         await self.save(update_fields=["last_activity"])
 
     async def increment_downloads(self, file_size: int = 0) -> None:

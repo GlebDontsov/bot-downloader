@@ -33,7 +33,7 @@ class YouTubeService:
 
     @staticmethod
     def extract_video_id(url: str) -> Optional[str]:
-        """Извлекает ID видео из URL YouTube, TikTok и Rutube"""
+        """Извлекает ID видео из URL YouTube, TikTok, Rutube и VK"""
         patterns = [
             # YouTube patterns
             r"(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+)",
@@ -50,7 +50,15 @@ class YouTubeService:
             r"(?:https?://)?(?:www\.)?rutube\.ru/video/([a-f0-9]+)/?",
             r"(?:https?://)?(?:www\.)?rutube\.ru/shorts/([a-f0-9]+)/?",
             r"(?:https?://)?(?:www\.)?rutube\.ru/video/([a-f0-9]+)\?",
-            r"(?:https?://)?(?:www\.)?rutube\.ru/shorts/([a-f0-9]+)\?"
+            r"(?:https?://)?(?:www\.)?rutube\.ru/shorts/([a-f0-9]+)\?",
+            # VK patterns
+            r"(?:https?://)?(?:www\.)?vk\.com/video(-?\d+_\d+)",
+            r"(?:https?://)?(?:www\.)?vk\.com/vkvideo\?z=video(-?\d+_\d+)",
+            r"(?:https?://)?(?:www\.)?vk\.com/clip(-?\d+_\d+)",
+            r"(?:https?://)?(?:www\.)?vk\.com/shvideo\?.*?z=clip(-?\d+_\d+)",
+            r"(?:https?://)?(?:www\.)?vk\.com/search/video\?.*?z=video(-?\d+_\d+)",
+            r"(?:https?://)?(?:www\.)?vkvideo\.ru/video(-?\d+_\d+)",
+            r"(?:https?://)?(?:www\.)?vkvideo\.ru/playlist/[^/]+/video(-?\d+_\d+)",
         ]
 
         for pattern in patterns:
@@ -58,7 +66,7 @@ class YouTubeService:
             if match:
                 return match.group(1)
 
-        return
+        return None
 
     @staticmethod
     def is_valid_url(url: str) -> bool:
@@ -157,14 +165,11 @@ class YouTubeService:
         if "formats" in info:
             for fmt in info["formats"]:
                 if fmt.get("vcodec") != "none":  # Только видео форматы
-                    file_size = fmt.get("filesize")
+                    file_size = fmt.get("filesize", 0)
 
                     # Если filesize отсутствует, пытаемся рассчитать
-                    if not file_size and fmt.get("tbr") is not None and info.get('duration'):
-                        try:
-                            file_size = int((fmt['tbr'] * 1000 * info['duration']) / 8)
-                        except (TypeError, KeyError):
-                            file_size = None
+                    if not file_size and fmt.get("tbr") and info.get("duration"):
+                        file_size = int((fmt["tbr"] * 1000 * info["duration"]) / 8)
 
                     formats.append(
                         {
@@ -182,16 +187,22 @@ class YouTubeService:
         return formats
 
     @staticmethod
-    async def get_existing_download(video: Video, quality: str, format_type: str) -> Optional[DownloadHistory]:
+    async def get_existing_download(
+        video: Video, quality: str, format_type: str
+    ) -> Optional[DownloadHistory]:
         """Возвращает существующую запись о скачивании если она есть"""
-        return await DownloadHistory.filter(
-            video=video,
-            quality=quality,
-            format_type=format_type,
-            status=DownloadStatus.COMPLETED
-        ).filter(
-            Q(file_path__not_isnull=True) | Q(telegram_file_id__not_isnull=True)
-        ).first()
+        return (
+            await DownloadHistory.filter(
+                video=video,
+                quality=quality,
+                format_type=format_type,
+                status=DownloadStatus.COMPLETED,
+            )
+            .filter(
+                Q(file_path__not_isnull=True) | Q(telegram_file_id__not_isnull=True)
+            )
+            .first()
+        )
 
     async def download_video(
         self,
@@ -216,7 +227,9 @@ class YouTubeService:
             download.telegram_file_id = existing_download.telegram_file_id
             download.status = existing_download.status
             download.file_size = existing_download.file_size
-            await download.save(update_fields=["status", "file_size", "telegram_file_id"])
+            await download.save(
+                update_fields=["status", "file_size", "telegram_file_id"]
+            )
 
             await self.update_download_statistics(video, user, file_size)
 
@@ -225,10 +238,18 @@ class YouTubeService:
             )
             return existing_download
 
-        return await self.start_new_download(download, video, user, quality, format_type, file_size)
+        return await self.start_new_download(
+            download, video, user, quality, format_type, file_size
+        )
 
     async def start_new_download(
-        self, download: DownloadHistory, video: Video, user: User, quality: str, format_type: str, file_size: int
+        self,
+        download: DownloadHistory,
+        video: Video,
+        user: User,
+        quality: str,
+        format_type: str,
+        file_size: int,
     ) -> DownloadHistory:
         """Начинает новое скачивание видео"""
         try:
@@ -351,7 +372,9 @@ class YouTubeService:
                     await aio_os.remove(download.file_path)
                     # Удаляем также пустую папку
                     parent_dir = os.path.dirname(download.file_path)
-                    if await aio_os.path.exists(parent_dir) and not await aio_os.listdir(parent_dir):
+                    if await aio_os.path.exists(
+                        parent_dir
+                    ) and not await aio_os.listdir(parent_dir):
                         await aio_os.rmdir(parent_dir)
 
                     download.file_path = None

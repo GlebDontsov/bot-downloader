@@ -2,17 +2,23 @@ import os
 import shutil
 import asyncio
 import aiofiles.os as aio_os
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from loguru import logger
 from app.models import DownloadHistory, DownloadStatus
-from app.utils.constants import CLEANUP_THRESHOLD, TARGET_USAGE_DISK, DISK_CLEANUP_INTERVAL, MOSCOW_TZ
+from app.utils.constants import (
+    CLEANUP_THRESHOLD,
+    TARGET_USAGE_DISK,
+    DISK_CLEANUP_INTERVAL,
+    MOSCOW_TZ,
+)
 
 
 def format_file_size(total_size: int) -> str:
     """Форматирует размер файла в удобочитаемый вид."""
+    if not total_size:
+        return "unknown"
+
     if total_size > 1024 * 1024 * 1024:
         return f"{total_size / (1024 * 1024 * 1024):.1f} ГБ"
     elif total_size > 1024 * 1024:
@@ -52,7 +58,7 @@ async def cleanup_old_files(disk_path: str = "/") -> int:
     if current_usage_percent < CLEANUP_THRESHOLD:
         logger.info(
             f"Очистка не требуется. Использование диска: {current_usage_percent:.1f}% "
-            f"(порог: {CLEANUP_THRESHOLD}%, свободно: {free / (1024 ** 3):.1f} GB)"
+            f"(порог: {CLEANUP_THRESHOLD}%, свободно: {free / (1024**3):.1f} GB)"
         )
         return 0
 
@@ -83,7 +89,9 @@ async def cleanup_old_files(disk_path: str = "/") -> int:
 
                 # Удаляем пустую папку
                 parent_dir = os.path.dirname(download.file_path)
-                if await aio_os.path.exists(parent_dir) and not await aio_os.listdir(parent_dir):
+                if await aio_os.path.exists(parent_dir) and not await aio_os.listdir(
+                    parent_dir
+                ):
                     await aio_os.rmdir(parent_dir)
 
                 # Обновляем запись в базе
@@ -130,7 +138,9 @@ async def generate_stats_file() -> tuple[str, dict, int]:
     """Генерирует файл со статистикой по пользователям за последние 30 дней в читаемом формате"""
     # Изменяем временной диапазон на последние 30 дней
     thirty_days_ago = get_moscow_time() - timedelta(days=30)
-    thirty_days_ago_start = datetime.combine(thirty_days_ago.date(), datetime.min.time())
+    thirty_days_ago_start = datetime.combine(
+        thirty_days_ago.date(), datetime.min.time()
+    )
 
     user_stats = await DownloadHistory.filter(
         created_at__gte=thirty_days_ago_start
@@ -140,7 +150,11 @@ async def generate_stats_file() -> tuple[str, dict, int]:
     user_downloads = {}
     for download in user_stats:
         user_id = download.user.id if download.user else "Аноним"
-        username = f"@{download.user.username}" if download.user and download.user.username else "Без username"
+        username = (
+            f"@{download.user.username}"
+            if download.user and download.user.username
+            else "Без username"
+        )
         full_name = download.user.full_name if download.user else "Аноним"
 
         if user_id not in user_downloads:
@@ -149,7 +163,7 @@ async def generate_stats_file() -> tuple[str, dict, int]:
                 "full_name": full_name,
                 "total": 0,
                 "completed": 0,
-                "failed": 0
+                "failed": 0,
             }
 
         user_downloads[user_id]["total"] += 1
@@ -159,19 +173,23 @@ async def generate_stats_file() -> tuple[str, dict, int]:
             user_downloads[user_id]["failed"] += 1
 
     # Создаем текстовое содержимое
-    text_content = f"📊 СТАТИСТИКА СКАЧИВАНИЙ ЗА ПОСЛЕДНИЕ 30 ДНЕЙ\n"
+    text_content = "📊 СТАТИСТИКА СКАЧИВАНИЙ ЗА ПОСЛЕДНИЕ 30 ДНЕЙ\n"
     text_content += f"Период: {thirty_days_ago.strftime('%d.%m.%Y')} - {datetime.now().strftime('%d.%m.%Y')}\n"
     text_content += "=" * 60 + "\n\n"
 
     # Сортируем пользователей по количеству скачиваний (по убыванию)
-    sorted_users = sorted(user_downloads.items(), key=lambda x: x[1]["total"], reverse=True)
+    sorted_users = sorted(
+        user_downloads.items(), key=lambda x: x[1]["total"], reverse=True
+    )
 
     # Статистика по пользователям
     text_content += "👥 ПОЛЬЗОВАТЕЛИ:\n"
     text_content += "-" * 30 + "\n"
 
     for i, (user_id, stats) in enumerate(sorted_users, 1):
-        success_rate = (stats["completed"] / stats["total"] * 100) if stats["total"] > 0 else 0
+        success_rate = (
+            (stats["completed"] / stats["total"] * 100) if stats["total"] > 0 else 0
+        )
         text_content += f"{i}. {stats['full_name']} ({stats['username']})\n"
         text_content += f"   📥 Всего: {stats['total']} | ✅ Успешно: {stats['completed']} | ❌ Ошибок: {stats['failed']}\n"
         text_content += f"   📊 Успешность: {success_rate:.1f}%\n\n"
@@ -180,7 +198,9 @@ async def generate_stats_file() -> tuple[str, dict, int]:
     total_downloads = sum(stats["total"] for stats in user_downloads.values())
     total_completed = sum(stats["completed"] for stats in user_downloads.values())
     total_failed = sum(stats["failed"] for stats in user_downloads.values())
-    overall_success_rate = (total_completed / total_downloads * 100) if total_downloads > 0 else 0
+    overall_success_rate = (
+        (total_completed / total_downloads * 100) if total_downloads > 0 else 0
+    )
 
     text_content += "📈 ОБЩАЯ СТАТИСТИКА:\n"
     text_content += "-" * 30 + "\n"
@@ -193,9 +213,13 @@ async def generate_stats_file() -> tuple[str, dict, int]:
     # Дополнительная информация
     text_content += "💡 ПРИМЕЧАНИЕ:\n"
     text_content += "-" * 30 + "\n"
-    text_content += "• Анонимные пользователи - те, кто начал скачивание\n  до регистрации в боте\n"
+    text_content += (
+        "• Анонимные пользователи - те, кто начал скачивание\n  до регистрации в боте\n"
+    )
     text_content += "• Успешность считается как отношение успешных\n  скачиваний к общему количеству попыток\n"
-    text_content += f"• Отчет сгенерирован: {get_moscow_time().strftime('%d.%m.%Y %H:%M')}"
+    text_content += (
+        f"• Отчет сгенерирован: {get_moscow_time().strftime('%d.%m.%Y %H:%M')}"
+    )
 
     return text_content, user_downloads, total_downloads
 

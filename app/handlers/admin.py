@@ -1,9 +1,9 @@
 """
 Хендлеры для администраторов
 """
+
 import os
 from pathlib import Path
-from datetime import timedelta
 
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
@@ -140,14 +140,14 @@ async def admin_export_stats(callback: CallbackQuery, user: User):
         # Генерируем файл со статистикой (теперь без параметра даты)
         text_content, user_downloads, total_downloads = await generate_stats_file()
 
-        filename.write_text(text_content, encoding='utf-8')
+        filename.write_text(text_content, encoding="utf-8")
 
         # Отправляем файл
         await callback.message.answer_document(
             document=BufferedInputFile(filename.read_bytes(), filename=filename.name),
             caption=f"📊 Статистика скачиваний за последние 30 дней\n"
-                    f"👥 Пользователей: {len(user_downloads)}\n"
-                    f"📥 Скачиваний: {total_downloads}"
+            f"👥 Пользователей: {len(user_downloads)}\n"
+            f"📥 Скачиваний: {total_downloads}",
         )
 
         await admin_back_callback(callback, user)
