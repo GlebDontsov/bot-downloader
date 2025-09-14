@@ -19,27 +19,25 @@ router = Router()
 youtube_service = YouTubeService()
 
 
-@router.message(F.text.regexp(
-    r"(?:https?://)?(?:www\.)?(?:"
-    r"youtube\.com|youtu\.be|"
-    r"tiktok\.com/(?:@[^/]+/video/\d+|t/[A-Za-z0-9]+/)|"
-    r"vt\.tiktok\.com/[A-Za-z0-9]+|"
-    r"rutube\.ru/(?:video|shorts)/[a-f0-9]+"
-    r")"
-))
+@router.message(
+    F.text.regexp(
+        r"(?:https?://)?(?:www\.)?(?:"
+        r"youtube\.com|youtu\.be|"
+        r"tiktok\.com/(?:@[^/]+/video/\d+|t/[A-Za-z0-9]+/)|"
+        r"vt\.tiktok\.com/[A-Za-z0-9]+|"
+        r"rutube\.ru/(?:video|shorts)/[a-f0-9]+|"
+        r"vk\.com/(?:video|vkvideo|clip|shvideo|search/video)|"
+        r"vkvideo\.ru/(?:video|playlist)"
+        r")"
+    )
+)
 async def url_handler(message: Message, user: User):
-    """Обработчик YouTube ссылок"""
+    """Обработчик видео ссылок"""
     url = message.text.strip()
 
     # Проверяем валидность URL
     if not youtube_service.is_valid_url(url):
-        await message.answer(
-            "❌ Неверная ссылка на YouTube видео.\n"
-            "Поддерживаемые форматы:\n"
-            "• https://youtube.com/watch?v=VIDEO_ID\n"
-            "• https://youtu.be/VIDEO_ID\n"
-            "• https://youtube.com/shorts/VIDEO_ID"
-        )
+        await message.answer("❌ Неверный формат ссылки на видео.")
         return
 
     # Отправляем сообщение о загрузке
@@ -96,7 +94,8 @@ async def url_handler(message: Message, user: User):
 
         # Добавляем вариант MP3
         builder.button(
-            text="🎵 MP3 (только аудио)", callback_data=f"download:{video.id}:mp3:audio:1"
+            text="🎵 MP3 (только аудио)",
+            callback_data=f"download:{video.id}:mp3:audio:1",
         )
 
         # Добавляем кнопку с информацией
@@ -109,7 +108,7 @@ async def url_handler(message: Message, user: User):
         )
 
     except Exception as e:
-        logger.error(f"Ошибка обработки YouTube URL {url}: {e}")
+        logger.error(f"Ошибка обработки URL {url}: {e}")
         await loading_msg.edit_text(
             "❌ Произошла ошибка при обработке видео.\n"
             "Попробуйте позже или обратитесь к администратору."
@@ -126,6 +125,7 @@ async def download_callback(callback: CallbackQuery, user: User):
 
         # Получаем видео из базы данных
         from app.models import Video
+
         video = await Video.get(id=video_id)
 
         await callback.answer("🚀 Начинаем скачивание...")
@@ -146,7 +146,7 @@ async def download_callback(callback: CallbackQuery, user: User):
                 f"🎯️ <b>Качество:</b> {quality}\n"
                 f"📁 <b>Формат:</b> {format_type.upper()}\n\n"
                 "🕐 <i>Это может занять некоторое время...</i>",
-                parse_mode="HTML"
+                parse_mode="HTML",
             )
 
         # Скачиваем видео
@@ -161,7 +161,11 @@ async def download_callback(callback: CallbackQuery, user: User):
 
         if download_record and download_record.is_completed:
             # Отправляем файл пользователю
-            if download_record.telegram_file_id or download_record.file_path and os.path.exists(download_record.file_path):
+            if (
+                download_record.telegram_file_id
+                or download_record.file_path
+                and os.path.exists(download_record.file_path)
+            ):
                 try:
                     # Создаем объект файла
                     file = download_record.telegram_file_id
@@ -176,25 +180,25 @@ async def download_callback(callback: CallbackQuery, user: User):
                         sent_message = await callback.message.answer_audio(
                             file,
                             caption=f"🎵 <code>{video.title}</code>\n\n"
-                                    f"📻 <b>Аудиодорожка</b>\n"
-                                    f"👤 Автор: {video.channel_name}\n"
-                                    f"📁 Формат: MP3\n"
-                                    f"⏱️ Продолжительность: {format_duration(video.duration)}\n\n"
-                                    f"✅ <b>Скачивание завершено!</b>\n\n"
-                                    f"🤖 Скачано через @savvy_video_bot",
+                            f"📻 <b>Аудиодорожка</b>\n"
+                            f"👤 Автор: {video.channel_name}\n"
+                            f"📁 Формат: MP3\n"
+                            f"⏱️ Продолжительность: {format_duration(video.duration)}\n\n"
+                            f"✅ <b>Скачивание завершено!</b>\n\n"
+                            f"🤖 Скачано через @savvy_video_bot",
                             parse_mode="HTML",
                         )
                     else:
                         sent_message = await callback.message.answer_video(
                             file,
                             caption=f"🎬 <code>{video.title}</code>\n\n"
-                                    f"📺 Канал: {video.channel_name}\n"
-                                    f"🎯 Качество: {quality}\n"
-                                    f"📁 Формат: {format_type.upper()}\n"
-                                    f"⏱️ Продолжительность: {format_duration(video.duration)}\n\n"
-                                    f"🔗 {video.url}\n\n"
-                                    f"✅ <b>Видео готово к просмотру!</b>\n\n"
-                                    f"🤖 Скачано через @savvy_video_bot",
+                            f"📺 Канал: {video.channel_name}\n"
+                            f"🎯 Качество: {quality}\n"
+                            f"📁 Формат: {format_type.upper()}\n"
+                            f"⏱️ Продолжительность: {format_duration(video.duration)}\n\n"
+                            f"🔗 {video.url}\n\n"
+                            f"✅ <b>Видео готово к просмотру!</b>\n\n"
+                            f"🤖 Скачано через @savvy_video_bot",
                             parse_mode="HTML",
                         )
 
@@ -237,7 +241,9 @@ async def download_callback(callback: CallbackQuery, user: User):
     except Exception as e:
         logger.error(f"Ошибка в download_callback: {e}")
         # Используем original_message если он определен, иначе callback.message
-        message_to_edit = original_message if 'original_message' in locals() else callback.message
+        message_to_edit = (
+            original_message if "original_message" in locals() else callback.message
+        )
         await message_to_edit.edit_text(
             "❌ Произошла ошибка при скачивании.\n"
             "Попробуйте позже или обратитесь к администратору."

@@ -16,9 +16,7 @@ class Video(Model):
     )
     title = fields.TextField(description="Название видео")
     description = fields.TextField(null=True, description="Описание видео")
-    url = fields.CharField(
-        max_length=255, null=True, description="Ссылка на видео"
-    )
+    url = fields.CharField(max_length=255, null=True, description="Ссылка на видео")
     duration = fields.IntField(null=True, description="Длительность в секундах")
     view_count = fields.BigIntField(null=True, description="Количество просмотров")
     like_count = fields.BigIntField(null=True, description="Количество лайков")

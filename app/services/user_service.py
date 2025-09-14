@@ -3,7 +3,7 @@
 """
 
 from typing import Optional, List
-from datetime import datetime, timedelta
+from datetime import timedelta
 from aiogram.types import User as TelegramUser
 from tortoise.queryset import Q
 from tortoise.exceptions import DoesNotExist
@@ -105,7 +105,7 @@ class UserService:
             )
 
             # Статистика за сегодня
-            today =get_moscow_time().date()
+            today = get_moscow_time().date()
             today_downloads = await DownloadHistory.filter(
                 user=user, created_at__gte=today
             ).count()
