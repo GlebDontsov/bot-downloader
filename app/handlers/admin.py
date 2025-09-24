@@ -15,7 +15,7 @@ from app.services.user_service import UserService
 from app.services.youtube_service import YouTubeService
 from app.services.logger import get_logger
 from app.middlewares import AdminMiddleware
-from app.utils.funcs import generate_stats_file, get_moscow_time
+from app.utils.funcs import generate_stats_file, get_moscow_time, cleanup_all_files
 
 logger = get_logger(__name__)
 router = Router()
@@ -168,7 +168,7 @@ async def admin_cleanup_callback(callback: CallbackQuery, user: User):
     await callback.answer("🧹 Очищаем старые файлы...")
 
     try:
-        cleaned_count = await youtube_service.cleanup_all_files()
+        cleaned_count = await cleanup_all_files()
 
         cleanup_text = f"""
 🧹 <b>Очистка завершена</b>

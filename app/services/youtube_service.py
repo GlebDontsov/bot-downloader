@@ -4,6 +4,7 @@
 
 import os
 import re
+import shutil
 import asyncio
 import tempfile
 from pathlib import Path
@@ -325,6 +326,12 @@ class YouTubeService:
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Ошибка скачивания видео {video.video_id}: {error_msg}")
+
+            await download.delete()
+            
+            if 'temp_dir' in locals() and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
             await download.mark_as_failed(error_msg)
             return download
 
@@ -355,37 +362,6 @@ class YouTubeService:
 
         # Сортируем по качеству (по убыванию)
         return sorted(qualities.values(), key=lambda x: x["height"], reverse=True)
-
-    @staticmethod
-    async def cleanup_all_files() -> int:
-        """Очищает старые скачанные файлы"""
-        cleaned_count = 0
-
-        old_downloads = await DownloadHistory.filter(
-            status=DownloadStatus.COMPLETED,
-            file_path__not_isnull=True,
-        )
-
-        for download in old_downloads:
-            try:
-                if download.file_path and await aio_os.path.exists(download.file_path):
-                    await aio_os.remove(download.file_path)
-                    # Удаляем также пустую папку
-                    parent_dir = os.path.dirname(download.file_path)
-                    if await aio_os.path.exists(
-                        parent_dir
-                    ) and not await aio_os.listdir(parent_dir):
-                        await aio_os.rmdir(parent_dir)
-
-                    download.file_path = None
-                    await download.save(update_fields=["file_path"])
-                    cleaned_count += 1
-
-            except Exception as e:
-                logger.error(f"Ошибка удаления файла {download.file_path}: {e}")
-
-        logger.info(f"Очищено {cleaned_count} старых файлов")
-        return cleaned_count
 
     @staticmethod
     async def get_download_stats() -> Dict[str, Any]:
