@@ -7,8 +7,6 @@ from datetime import datetime, timedelta
 from loguru import logger
 from app.models import DownloadHistory, DownloadStatus
 from app.utils.constants import (
-    CLEANUP_THRESHOLD,
-    TARGET_USAGE_DISK,
     DISK_CLEANUP_INTERVAL,
     MOSCOW_TZ,
 )

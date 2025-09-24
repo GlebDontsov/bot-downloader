@@ -12,7 +12,6 @@ from typing import Optional, Dict, List, Any
 from datetime import datetime
 
 import yt_dlp
-import aiofiles.os as aio_os
 from tortoise.exceptions import DoesNotExist
 from tortoise.expressions import Q
 
