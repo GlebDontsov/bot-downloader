@@ -15,7 +15,7 @@ from app.services.user_service import UserService
 from app.services.youtube_service import YouTubeService
 from app.services.logger import get_logger
 from app.middlewares import AdminMiddleware
-from app.utils.funcs import generate_stats_file, get_moscow_time, cleanup_all_files
+from app.utils.funcs import generate_stats_file, generate_users_id_file, get_moscow_time, cleanup_all_files
 
 logger = get_logger(__name__)
 router = Router()
@@ -120,6 +120,7 @@ async def admin_stats_callback(callback: CallbackQuery, user: User):
 
     builder = InlineKeyboardBuilder()
     builder.button(text="📈 Экспорт статистики", callback_data="admin_export_stats")
+    builder.button(text="🆔 Экспорт списка пользоватлей", callback_data="admin_export_user_ids_file")
     builder.button(text="◀️ Назад", callback_data="admin_back")
     builder.adjust(1)
 
@@ -137,9 +138,7 @@ async def admin_export_stats(callback: CallbackQuery, user: User):
     filename = Path(f"stats_30days_{moscow_now.strftime('%Y%m%d_%H%M')}.txt")
 
     try:
-        # Генерируем файл со статистикой (теперь без параметра даты)
         text_content, user_downloads, total_downloads = await generate_stats_file()
-
         filename.write_text(text_content, encoding="utf-8")
 
         # Отправляем файл
@@ -155,6 +154,33 @@ async def admin_export_stats(callback: CallbackQuery, user: User):
     except Exception as e:
         await callback.answer("❌ Ошибка при генерации статистики")
         logger.error(f"Ошибка при генерации статистики: {e}")
+
+    finally:
+        if os.path.exists(filename):
+            os.remove(filename)
+
+
+@router.callback_query(F.data == "admin_export_user_ids_file")
+async def admin_export_user_ids_file(callback: CallbackQuery, user: User):
+    """Экспорт списка пользователей"""
+
+    moscow_now = get_moscow_time()
+    filename = Path(f"user_ids_{moscow_now.strftime('%Y%m%d_%H%M')}.txt")
+
+    try:
+        text_content = await generate_users_id_file()
+        filename.write_text(text_content, encoding="utf-8")
+
+        await callback.message.answer_document(
+            document=BufferedInputFile(filename.read_bytes(), filename=filename.name),
+            caption=f"👥 Список пользователей бота",
+        )
+
+        await admin_back_callback(callback, user)
+
+    except Exception as e:
+        await callback.answer("❌ Ошибка при генерации списка пользователей")
+        logger.error(f"Ошибка при генерации списка пользователей: {e}")
 
     finally:
         if os.path.exists(filename):

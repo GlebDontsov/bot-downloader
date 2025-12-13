@@ -5,7 +5,7 @@ import aiofiles.os as aio_os
 from datetime import datetime, timedelta
 
 from loguru import logger
-from app.models import DownloadHistory, DownloadStatus
+from app.models import DownloadHistory, DownloadStatus, User
 from app.utils.constants import (
     DISK_CLEANUP_INTERVAL,
     MOSCOW_TZ,
@@ -181,6 +181,22 @@ async def generate_stats_file() -> tuple[str, dict, int]:
     )
 
     return text_content, user_downloads, total_downloads
+
+
+async def generate_users_id_file() -> str:
+    """Генерирует текстовое содержимое со списком ID пользователей"""
+    users = await User.all()
+
+    text_content = "📋 СПИСОК ID ПОЛЬЗОВАТЕЛЕЙ\n"
+    text_content += f"Всего пользователей: {len(users)}\n"
+    text_content += "=" * 40 + "\n\n"
+
+    for i, user in enumerate(users, 1):
+        text_content += f"{i}. {user.telegram_id}\n"
+
+    text_content += f"\nСгенерировано: {get_moscow_time().strftime('%d.%m.%Y %H:%M')}"
+
+    return text_content
 
 
 def get_moscow_time() -> datetime:
