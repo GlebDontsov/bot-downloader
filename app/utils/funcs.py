@@ -187,14 +187,9 @@ async def generate_users_id_file() -> str:
     """Генерирует текстовое содержимое со списком ID пользователей"""
     users = await User.all()
 
-    text_content = "📋 СПИСОК ID ПОЛЬЗОВАТЕЛЕЙ\n"
-    text_content += f"Всего пользователей: {len(users)}\n"
-    text_content += "=" * 40 + "\n\n"
-
+    text_content = ""
     for i, user in enumerate(users, 1):
-        text_content += f"{i}. {user.telegram_id}\n"
-
-    text_content += f"\nСгенерировано: {get_moscow_time().strftime('%d.%m.%Y %H:%M')}"
+        text_content += f"{user.telegram_id}\n"
 
     return text_content
 
