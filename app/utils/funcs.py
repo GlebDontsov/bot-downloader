@@ -2,9 +2,11 @@ import os
 import shutil
 import asyncio
 import aiofiles.os as aio_os
+from typing import Dict, Any
 from datetime import datetime, timedelta
 
 from loguru import logger
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.models import DownloadHistory, DownloadStatus, User
 from app.utils.constants import (
     DISK_CLEANUP_INTERVAL,
@@ -199,3 +201,100 @@ def get_moscow_time() -> datetime:
     Упрощенная версия получения московского времени
     """
     return datetime.now(MOSCOW_TZ)
+
+
+_subscription_config = {
+    "active": False,
+    "channel_id": None,
+    "channel_name": "",
+    "channel_url": "",
+    "required_subscribers": 0,
+    "current_count": 0
+}
+
+processed_users = set()
+
+
+def set_subscription_config(config: Dict[str, Any]) -> None:
+    """Устанавливает конфигурацию подписки (вызывается админом)"""
+    global _subscription_config
+    _subscription_config = config
+
+
+def get_subscription_config() -> Dict[str, Any]:
+    """Возвращает текущую конфигурацию подписки"""
+    global _subscription_config
+    return _subscription_config.copy()
+
+
+async def check_user_subscription(bot, user_id: int, channel_id: int) -> bool:
+    """Проверяет, подписан ли пользователь на канал"""
+    try:
+        member = await bot.get_chat_member(channel_id, user_id)
+        return member.status not in ["left", "kicked"]
+    except Exception as e:
+        logger.error(f"Ошибка проверки подписки для пользователя {user_id}: {e}")
+        return False
+
+
+async def increment_subscription_counter(user_id: int, bot) -> bool:
+    """
+    Увеличивает счетчик подписчиков для конкретного пользователя
+    Возвращает True если подписка отключена из-за достижения лимита
+    """
+    global _subscription_config, processed_users
+
+    config = get_subscription_config()
+
+    if not config["active"]:
+        return False
+
+    if user_id in processed_users:
+        return False
+
+    processed_users.add(user_id)
+
+    config["current_count"] += 1
+
+    set_subscription_config(config)
+
+    logger.info(
+        f"📊 Счетчик подписчиков увеличен пользователем {user_id}: {config['current_count']}/{config['required_subscribers']}")
+
+    # Проверяем, достигнут ли лимит
+    if config["current_count"] >= config["required_subscribers"]:
+        config["active"] = False
+        set_subscription_config(config)
+        processed_users.clear()  # Очищаем список обработанных пользователей
+        logger.info(
+            f"✅ Обязательная подписка отключена. Достигнут лимит: {config['current_count']}/{config['required_subscribers']}")
+        return True
+
+    return False
+
+
+def is_user_processed(user_id: int) -> bool:
+    """Проверяет, нажимал ли пользователь кнопку 'Я подписался'"""
+    global processed_users
+    return user_id in processed_users
+
+
+def mark_user_processed(user_id: int):
+    """Помечает пользователя как обработанного"""
+    global processed_users
+    processed_users.add(user_id)
+
+
+def create_subscription_keyboard(channel_name: str, channel_url: str) -> InlineKeyboardBuilder:
+    """Создает клавиатуру для подписки"""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=f"📢 Подписаться на {channel_name}",
+        url=channel_url
+    )
+    builder.button(
+        text="✅ Я подписался",
+        callback_data="check_subscription"
+    )
+    builder.adjust(1)
+    return builder

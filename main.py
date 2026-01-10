@@ -15,7 +15,7 @@ from tortoise import Tortoise
 
 from app.config.settings import settings
 from app.handlers import routers
-from app.middlewares import AuthMiddleware, RateLimitMiddleware
+from app.middlewares import AuthMiddleware, RateLimitMiddleware, SubscriptionMiddleware
 from app.services.logger import setup_logger, get_logger
 from app.utils.funcs import cleanup_scheduler, get_moscow_time
 
@@ -81,7 +81,9 @@ async def main():
     dp.callback_query.middleware(AuthMiddleware())
     dp.message.middleware(RateLimitMiddleware())
     dp.callback_query.middleware(RateLimitMiddleware())
-    
+    dp.message.middleware(SubscriptionMiddleware())
+    dp.callback_query.middleware(SubscriptionMiddleware())
+
     # Регистрируем роутеры
     for router in routers:
         dp.include_router(router)

@@ -3,14 +3,15 @@
 """
 
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.models import User
 from app.services.user_service import UserService
 from app.services.logger import get_logger
-from app.utils.funcs import format_file_size
+from app.utils.funcs import format_file_size, get_subscription_config, check_user_subscription
+
 
 logger = get_logger(__name__)
 router = Router()
@@ -209,3 +210,30 @@ async def history_refresh_callback(callback, user: User):
         "📋 История обновлена! Используйте команду /history для просмотра.",
         parse_mode="HTML",
     )
+
+
+@router.callback_query(F.data == "check_subscription")
+async def check_subscription_callback(callback: CallbackQuery):
+    """Обработка нажатия кнопки 'Я подписался' """
+
+    config = get_subscription_config()
+
+    if not config["active"]:
+        await callback.answer("✅ Обязательная подписка уже отключена.", show_alert=True)
+        await callback.message.delete()
+        return
+
+    is_subscribed = await check_user_subscription(
+        callback.bot,
+        callback.from_user.id,
+        config["channel_id"]
+    )
+
+    if not is_subscribed:
+        await callback.answer(
+            f"❌ Вы не подписаны на канал {config['channel_name']}!",
+            show_alert=True
+        )
+    else:
+        await callback.answer("✅ Спасибо за подписку!", show_alert=True)
+        await callback.message.delete()

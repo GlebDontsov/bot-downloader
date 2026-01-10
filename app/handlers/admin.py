@@ -15,7 +15,15 @@ from app.services.user_service import UserService
 from app.services.youtube_service import YouTubeService
 from app.services.logger import get_logger
 from app.middlewares import AdminMiddleware
-from app.utils.funcs import generate_stats_file, generate_users_id_file, get_moscow_time, cleanup_all_files
+from app.utils.funcs import (
+    generate_stats_file,
+    generate_users_id_file,
+    get_moscow_time,
+    cleanup_all_files,
+    set_subscription_config,
+    get_subscription_config,
+    check_user_subscription,
+)
 
 logger = get_logger(__name__)
 router = Router()
@@ -228,7 +236,18 @@ async def admin_broadcast_callback(callback: CallbackQuery, user: User):
 
 Сообщение будет отправлено всем активным пользователям.
 
-⚠️ <b>Внимание:</b> Используйте рассылку осторожно!
+📢 <b>Обязательная подписка:</b>
+Установить обязательную подписку на канал
+<code>/set_subscription channel_id "Название" ссылка количество</code>
+Пример: /set_subscription -1001234567890 "Мой канал" https://t.me/mychannel 100
+
+Показать текущий статус обязательной подписки:
+<code>/subscription_status</code>
+
+Принудительно отключить обязательную подписку:
+<code>/disable_subscription</code>
+
+⚠️ <b>Внимание:</b> Используйте команды осторожно!
     """
 
     builder = InlineKeyboardBuilder()
@@ -374,3 +393,100 @@ async def unban_user_command(message: Message, user: User):
 
     except ValueError:
         await message.answer("❌ Неверный формат ID пользователя")
+
+
+@router.message(Command("set_subscription"))
+async def set_subscription_command(message: Message, user: User):
+    """
+    Установка обязательной подписки
+    Формат: /set_subscription channel_id "Название канала" https://t.me/link количество
+    Пример: /set_subscription -1001234567890 "Мой канал" https://t.me/mychannel 100
+    """
+
+    args = message.text.split(maxsplit=4)
+
+    if len(args) < 5:
+        await message.answer(
+            "❌ Неверный формат команды.\n\n"
+            "Используйте:\n"
+            "<code>/set_subscription channel_id \"Название канала\" https://t.me/link количество_подписчиков</code>\n\n"
+            "Пример:\n"
+            "<code>/set_subscription -1001234567890 \"Мой канал\" https://t.me/mychannel 100</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    try:
+        channel_id = int(args[1])
+        channel_name = args[2].strip('"')
+        channel_url = args[3]
+        required_subscribers = int(args[4])
+
+        # Создаем новую конфигурацию
+        config = {
+            "active": True,
+            "channel_id": channel_id,
+            "channel_name": channel_name,
+            "channel_url": channel_url,
+            "required_subscribers": required_subscribers,
+            "current_count": 0
+        }
+
+        # Устанавливаем конфигурацию через функцию из middleware
+        set_subscription_config(config)
+
+        await message.answer(
+            f"✅ Обязательная подписка установлена!\n\n"
+            f"📢 Канал: {channel_name}\n"
+            f"🔗 Ссылка: {channel_url}\n"
+            f"🎯 Требуется подписчиков: {required_subscribers}\n\n"
+            f"Теперь все новые пользователи должны будут подписаться на канал.\n"
+            f"Используйте /update_subscription_count для подсчета текущих подписчиков."
+        )
+
+    except ValueError as e:
+        await message.answer(f"❌ Ошибка в данных: {e}")
+    except Exception as e:
+        logger.error(f"Ошибка установки подписки: {e}")
+        await message.answer(f"❌ Ошибка: {e}")
+
+
+@router.message(Command("subscription_status"))
+async def subscription_status_command(message: Message, user: User):
+    """Показывает текущий статус обязательной подписки"""
+
+    config = get_subscription_config()
+
+    if not config["active"]:
+        await message.answer("📭 Обязательная подписка отключена.")
+        return
+
+    status_text = (
+        f"📢 <b>Статус обязательной подписки</b>\n\n"
+        f"✅ Активна: Да\n"
+        f"📢 Канал: {config['channel_name']}\n"
+        f"🆔 ID: <code>{config['channel_id']}</code>\n"
+        f"🔗 Ссылка: {config['channel_url']}\n"
+        f"🎯 Требуется подписчиков: {config['required_subscribers']}\n"
+        f"📊 Текущее количество: {config['current_count']}\n\n"
+        f"📈 Прогресс: {config['current_count']}/{config['required_subscribers']} "
+        f"({(config['current_count'] / config['required_subscribers'] * 100):.1f}%)"
+    )
+
+    await message.answer(status_text, parse_mode="HTML")
+
+
+@router.message(Command("disable_subscription"))
+async def disable_subscription_command(message: Message, user: User):
+    """Принудительно отключает обязательную подписку"""
+
+    config = get_subscription_config()
+
+    if not config["active"]:
+        await message.answer("❌ Обязательная подписка итак отключена.")
+        return
+
+    config["active"] = False
+    set_subscription_config(config)
+
+    await message.answer("✅ Обязательная подписка принудительно отключена.")
