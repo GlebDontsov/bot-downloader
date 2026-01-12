@@ -273,7 +273,7 @@ async def broadcast_command(message: Message, user: User):
 
     broadcast_text = text_parts[1]
 
-    users = await user_service.get_all_users()
+    users = await user_service.get_all_users(limit=100_000)
 
     await message.answer(f"📢 Начинаем рассылку для {len(users)} пользователей...")
 
