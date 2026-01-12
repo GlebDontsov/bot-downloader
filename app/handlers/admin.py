@@ -241,7 +241,7 @@ async def admin_broadcast_callback(callback: CallbackQuery, user: User):
 📢 <b>Обязательная подписка:</b>
 Установить обязательную подписку на канал
 <code>/set_subscription channel_id "Название" ссылка количество</code>
-Пример:<code>/set_subscription -1001234567890 "Мой канал" https://t.me/mychannel 100<code>
+Пример:<code>/set_subscription -1001234567890 "Мой канал" https://t.me/mychannel 100</code>
 
 Показать текущий статус обязательной подписки:
 <code>/subscription_status</code>
