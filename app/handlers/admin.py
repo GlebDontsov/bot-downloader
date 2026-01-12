@@ -3,18 +3,21 @@
 """
 
 import os
+import asyncio
 from pathlib import Path
 
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.fsm.context import FSMContext
 
 from app.models import User
 from app.services.user_service import UserService
 from app.services.youtube_service import YouTubeService
 from app.services.logger import get_logger
 from app.middlewares import AdminMiddleware
+from app.states.broadcast_states import BroadcastStates
 from app.utils.funcs import (
     generate_stats_file,
     generate_users_id_file,
@@ -22,7 +25,6 @@ from app.utils.funcs import (
     cleanup_all_files,
     set_subscription_config,
     get_subscription_config,
-    check_user_subscription,
 )
 
 logger = get_logger(__name__)
@@ -232,14 +234,14 @@ async def admin_broadcast_callback(callback: CallbackQuery, user: User):
 📢 <b>Рассылка сообщений</b>
 
 Для отправки рассылки используйте команду:
-<code>/broadcast ваше_сообщение</code>
+<code>/broadcast</code>
 
-Сообщение будет отправлено всем активным пользователям.
+Сообщение будет отправлено всем пользователям.
 
 📢 <b>Обязательная подписка:</b>
 Установить обязательную подписку на канал
 <code>/set_subscription channel_id "Название" ссылка количество</code>
-Пример: /set_subscription -1001234567890 "Мой канал" https://t.me/mychannel 100
+Пример:<code>/set_subscription -1001234567890 "Мой канал" https://t.me/mychannel 100<code>
 
 Показать текущий статус обязательной подписки:
 <code>/subscription_status</code>
@@ -259,49 +261,232 @@ async def admin_broadcast_callback(callback: CallbackQuery, user: User):
 
 
 @router.message(Command("broadcast"))
-async def broadcast_command(message: Message, user: User):
-    """Команда рассылки"""
+async def broadcast_command(message: Message, user: User, state: FSMContext):
+    """Команда для начала рассылки"""
 
-    # Получаем текст сообщения
-    text_parts = message.text.split(" ", 1)
-    if len(text_parts) < 2:
-        await message.answer(
-            "❌ Укажите текст для рассылки:\n<code>/broadcast ваше_сообщение</code>",
-            parse_mode="HTML",
-        )
+    if not user.is_admin:
+        await message.answer("❌ Эта команда только для администраторов")
         return
 
-    broadcast_text = text_parts[1]
+    await message.answer(
+        "📢 <b>Режим рассылки</b>\n\n"
+        "Отправьте сообщение, которое нужно разослать всем пользователям.\n"
+        "Можно отправить:\n"
+        "• Текст\n"
+        "• Фото с подписью\n"
+        "• Видео\n"
+        "• Документ\n"
+        "• И любой другой тип сообщения\n\n"
+        "❌ <i>Для отмены отправьте /cancel</i>",
+        parse_mode="HTML"
+    )
 
-    users = await user_service.get_all_users(limit=100_000)
+    await state.set_state(BroadcastStates.waiting_for_post)
 
-    await message.answer(f"📢 Начинаем рассылку для {len(users)} пользователей...")
+
+@router.message(BroadcastStates.waiting_for_post)
+async def process_broadcast_post(message: Message, state: FSMContext, user: User):
+    """Обработка полученного поста для рассылки"""
+
+    if message.text and message.text.lower() in ["/cancel", "отмена", "cancel"]:
+        await message.answer("❌ Рассылка отменена")
+        await state.clear()
+        return
+
+    users = await user_service.get_all_users(limit=500_000)
+
+    if not users:
+        await message.answer("❌ Нет пользователей для рассылки")
+        await state.clear()
+        return
+
+    status_msg = await message.answer(f"📢 Начинаем рассылку для {len(users)} пользователей...")
 
     sent_count = 0
     failed_count = 0
+    blocked_count = 0
 
     for target_user in users:
         if target_user.is_blocked:
+            blocked_count += 1
             continue
 
         try:
-            await message.bot.send_message(
-                target_user.telegram_id,
-                f"📢 <b>Сообщение от администрации:</b>\n\n{broadcast_text}",
-                parse_mode="HTML",
+            await copy_message_to_user(
+                bot=message.bot,
+                chat_id=target_user.telegram_id,
+                source_message=message
             )
             sent_count += 1
+            await asyncio.sleep(0.05)
         except Exception as e:
-            logger.warning(
-                f"Не удалось отправить сообщение пользователю {target_user.telegram_id}: {e}"
-            )
+            logger.error(f"Ошибка отправки пользователю {target_user.telegram_id}: {e}")
             failed_count += 1
 
-    await message.answer(
-        f"✅ Рассылка завершена!\n"
-        f"📤 Отправлено: {sent_count}\n"
-        f"❌ Ошибок: {failed_count}"
+    result_text = (
+        f"✅ <b>Рассылка завершена!</b>\n\n"
+        f"📊 <b>Статистика:</b>\n"
+        f"• 👥 Всего пользователей: {len(users)}\n"
+        f"• 📤 Успешно отправлено: {sent_count}\n"
+        f"• 🚫 Пропущено (заблокированы): {blocked_count}\n"
+        f"• ❌ Ошибок отправки: {failed_count}\n\n"
+        f"<i>Сообщение было отправлено {sent_count} пользователям.</i>"
     )
+
+    await status_msg.edit_text(result_text, parse_mode="HTML")
+    await state.clear()
+
+
+async def copy_message_to_user(bot, chat_id: int, source_message):
+    """Копирует любое сообщение пользователю"""
+
+    # Получаем контент из исходного сообщения
+    text = source_message.text or source_message.caption or ""
+    entities = source_message.entities or source_message.caption_entities
+    reply_markup = source_message.reply_markup
+    parse_mode = None
+
+    # Фото
+    if source_message.photo:
+        await bot.send_photo(
+            chat_id=chat_id,
+            photo=source_message.photo[-1].file_id,
+            caption=text,
+            caption_entities=entities,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup,
+        )
+
+    # Видео
+    elif source_message.video:
+        await bot.send_video(
+            chat_id=chat_id,
+            video=source_message.video.file_id,
+            caption=text,
+            caption_entities=entities,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup,
+        )
+
+    # Документ
+    elif source_message.document:
+        await bot.send_document(
+            chat_id=chat_id,
+            document=source_message.document.file_id,
+            caption=text,
+            caption_entities=entities,
+            parse_mode=parse_mode,
+            reply_markup = reply_markup,
+        )
+
+    # Аудио
+    elif source_message.audio:
+        await bot.send_audio(
+            chat_id=chat_id,
+            audio=source_message.audio.file_id,
+            caption=text,
+            caption_entities=entities,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup,
+        )
+
+    # Голосовое сообщение
+    elif source_message.voice:
+        await bot.send_voice(
+            chat_id=chat_id,
+            voice=source_message.voice.file_id,
+            caption=text,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup,
+        )
+
+    # Анимация (GIF)
+    elif source_message.animation:
+        await bot.send_animation(
+            chat_id=chat_id,
+            animation=source_message.animation.file_id,
+            caption=text,
+            caption_entities=entities,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup,
+        )
+
+    elif source_message.sticker:
+        # Для стикера отправляем сначала заголовок, потом стикер
+        if text:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode=parse_mode
+            )
+        await bot.send_sticker(
+            chat_id=chat_id,
+            sticker=source_message.sticker.file_id
+        )
+
+    elif source_message.video_note:
+        # Для видео-сообщений тоже сначала заголовок
+        if text:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode=parse_mode
+            )
+        await bot.send_video_note(
+            chat_id=chat_id,
+            video_note=source_message.video_note.file_id
+        )
+
+    # Местоположение
+    elif source_message.location:
+        await bot.send_location(
+            chat_id=chat_id,
+            latitude=source_message.location.latitude,
+            longitude=source_message.location.longitude
+        )
+        if text:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode=parse_mode
+            )
+
+    elif source_message.contact:
+        await bot.send_contact(
+            chat_id=chat_id,
+            phone_number=source_message.contact.phone_number,
+            first_name=source_message.contact.first_name,
+            last_name=source_message.contact.last_name or ""
+        )
+        if text:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode=parse_mode
+            )
+
+    elif source_message.poll:
+        await bot.send_poll(
+            chat_id=chat_id,
+            question=source_message.poll.question,
+            options=[option.text for option in source_message.poll.options],
+            is_anonymous=source_message.poll.is_anonymous,
+            type=source_message.poll.type
+        )
+        if text:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode=parse_mode
+            )
+
+    else:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            entities=entities,
+            parse_mode=parse_mode
+        )
 
 
 @router.callback_query(F.data == "admin_back")
